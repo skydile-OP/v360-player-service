@@ -3,4 +3,5 @@ node_modules/
 *.log
 data/media/*
 !data/media/sample_item
+test_scan_folder/
 .DS_Store
