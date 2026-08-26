@@ -19,7 +19,6 @@
       display: flex;
       flex-direction: column;
     }
-    /* Header Navbar */
     .navbar {
       background-color: #1e293b;
       border-bottom: 1px solid #334155;
@@ -48,7 +47,6 @@
       font-size: 12px;
       font-weight: 600;
     }
-    /* Main Content Container */
     .container {
       max-width: 1280px;
       width: 100%;
@@ -56,7 +54,6 @@
       padding: 32px 24px;
       flex: 1;
     }
-    /* Upload Card */
     .upload-card {
       background: #1e293b;
       border: 2px dashed #475569;
@@ -87,11 +84,16 @@
       color: #94a3b8;
       margin-bottom: 20px;
     }
+    .btn-group-upload {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
     .btn-upload {
       background: #38bdf8;
       color: #0f172a;
       font-weight: 600;
-      padding: 10px 24px;
+      padding: 10px 20px;
       border-radius: 8px;
       border: none;
       cursor: pointer;
@@ -99,15 +101,22 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
+      font-size: 14px;
     }
     .btn-upload:hover {
       background: #7dd3fc;
     }
-    #fileInput {
+    .btn-upload-sec {
+      background: #334155;
+      color: #f8fafc;
+    }
+    .btn-upload-sec:hover {
+      background: #475569;
+    }
+    #folderInput, #fileInput {
       display: none;
     }
 
-    /* Section Bar */
     .section-header {
       display: flex;
       justify-content: space-between;
@@ -140,7 +149,6 @@
       color: #64748b;
     }
 
-    /* Items Grid Gallery */
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -262,7 +270,6 @@
       color: #ef4444;
     }
 
-    /* Modal Viewer Overlay */
     .modal {
       display: none;
       position: fixed;
@@ -303,7 +310,6 @@
       border: none;
     }
 
-    /* Toast Notifications */
     .toast {
       position: fixed;
       bottom: 24px;
@@ -330,15 +336,24 @@
   </nav>
 
   <div class="container">
-    <!-- Web Drag & Drop Upload -->
-    <div class="upload-card" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <!-- Web Drag & Drop Upload supporting Folders, Images, & ZIP -->
+    <div class="upload-card" id="dropZone">
       <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-      <div class="upload-title" id="uploadStatus">Upload New 360° Scan ZIP or Folder</div>
-      <div class="upload-subtitle">Drag & drop your scanned ZIP file here, or click to browse</div>
-      <button class="btn-upload" type="button">
-        <i class="fa-solid fa-folder-open"></i> Select ZIP File
-      </button>
-      <input type="file" id="fileInput" accept=".zip">
+      <div class="upload-title" id="uploadStatus">Upload 360° Scan Folder or Files</div>
+      <div class="upload-subtitle">Drag & drop your scanned stone folder directly here (e.g. from E:\vision360_data)</div>
+      
+      <div class="btn-group-upload">
+        <button class="btn-upload" type="button" onclick="document.getElementById('folderInput').click()">
+          <i class="fa-solid fa-folder-open"></i> Select Scan Folder
+        </button>
+        <button class="btn-upload btn-upload-sec" type="button" onclick="document.getElementById('fileInput').click()">
+          <i class="fa-solid fa-file-zipper"></i> Select ZIP or Files
+        </button>
+      </div>
+
+      <!-- Native browser input for folder selection -->
+      <input type="file" id="folderInput" webkitdirectory directory multiple>
+      <input type="file" id="fileInput" multiple accept=".zip,.jpg,.jpeg,.png,.webp,.json">
     </div>
 
     <!-- Section Title & Search -->
@@ -368,7 +383,7 @@
     </div>
   </div>
 
-  <div class="toast" id="toast">Copied link to clipboard!</div>
+  <div class="toast" id="toast">Copied to clipboard!</div>
 
   <script>
     let allItems = [];
@@ -392,7 +407,7 @@
         grid.innerHTML = `
           <div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 60px;">
             <i class="fa-solid fa-gem" style="font-size: 40px; margin-bottom: 12px;"></i>
-            <p>No 360° items uploaded yet. Drag & drop a scan ZIP file above to add your first item!</p>
+            <p>No 360° items uploaded yet. Drag & drop a scan folder above to add your first item!</p>
           </div>
         `;
         return;
@@ -451,7 +466,6 @@
       document.getElementById('modalIframe').src = '';
     }
 
-    // Clipboard helper
     function copyToClipboard(text) {
       navigator.clipboard.writeText(text).then(() => {
         showToast('Copied to clipboard!');
@@ -483,8 +497,9 @@
       }
     }
 
-    // File Upload Logic (Drag & Drop + Input)
+    // Folder & Files Upload Handling
     const dropZone = document.getElementById('dropZone');
+    const folderInput = document.getElementById('folderInput');
     const fileInput = document.getElementById('fileInput');
 
     dropZone.addEventListener('dragover', (e) => {
@@ -494,42 +509,111 @@
 
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 
-    dropZone.addEventListener('drop', (e) => {
+    dropZone.addEventListener('drop', async (e) => {
       e.preventDefault();
       dropZone.classList.remove('dragover');
-      if (e.dataTransfer.files.length > 0) {
-        handleUpload(e.dataTransfer.files[0]);
+      
+      const files = [];
+      const items = e.dataTransfer.items;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          const entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
+          if (entry) {
+            await readEntry(entry, files);
+          } else {
+            const f = items[i].getAsFile();
+            if (f) files.push(f);
+          }
+        }
+      }
+      if (files.length > 0) {
+        uploadFilesOrZip(files);
+      }
+    });
+
+    async function readEntry(entry, files, path = '') {
+      if (entry.isFile) {
+        const file = await new Promise(resolve => entry.file(resolve));
+        file.relativePath = path + file.name;
+        files.push(file);
+      } else if (entry.isDirectory) {
+        const dirReader = entry.createReader();
+        const entries = await new Promise(resolve => dirReader.readEntries(resolve));
+        for (let e of entries) {
+          await readEntry(e, files, path + entry.name + '/');
+        }
+      }
+    }
+
+    folderInput.addEventListener('change', () => {
+      if (folderInput.files.length > 0) {
+        uploadFilesOrZip(Array.from(folderInput.files));
       }
     });
 
     fileInput.addEventListener('change', () => {
       if (fileInput.files.length > 0) {
-        handleUpload(fileInput.files[0]);
+        uploadFilesOrZip(Array.from(fileInput.files));
       }
     });
 
-    async function handleUpload(file) {
-      if (!file.name.toLowerCase().endswith && !file.name.toLowerCase().endsWith('.zip')) {
-        alert('Please upload a ZIP file containing the 360° scan images/folder.');
+    async function uploadFilesOrZip(fileList) {
+      const uploadStatus = document.getElementById('uploadStatus');
+
+      // 1. Check if single ZIP file
+      if (fileList.length === 1 && fileList[0].name.toLowerCase().endsWith('.zip')) {
+        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Unzipping '${fileList[0].name}'...`;
+        const formData = new FormData();
+        formData.append('file', fileList[0]);
+
+        try {
+          const res = await fetch('/api/upload-zip', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Created 360° view for '${data.stoneId}'!`;
+            showToast(`Item '${data.stoneId}' created!`);
+            fetchItems();
+          } else {
+            uploadStatus.textContent = 'Upload failed: ' + (data.error || 'Unknown error');
+          }
+        } catch (err) {
+          uploadStatus.textContent = 'Upload error: ' + err.message;
+        }
         return;
       }
 
-      const uploadStatus = document.getElementById('uploadStatus');
-      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Unzipping '${file.name}'...`;
+      // 2. Raw folder or multiple image files
+      // Infer stoneId from relativePath or folder name
+      let stoneId = 'scanned_item';
+      if (fileList[0].webkitRelativePath) {
+        const parts = fileList[0].webkitRelativePath.split('/');
+        if (parts.length > 1) stoneId = parts[0];
+      } else if (fileList[0].relativePath) {
+        const parts = fileList[0].relativePath.split('/');
+        if (parts.length > 1) stoneId = parts[0];
+      }
+
+      const promptId = prompt('Enter Stone ID for this 360° scan:', stoneId);
+      if (!promptId) return;
+      stoneId = promptId.trim();
+
+      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading ${fileList.length} files for '${stoneId}'...`;
 
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('stoneId', stoneId);
+      fileList.forEach(file => {
+        formData.append('files', file, file.name);
+      });
 
       try {
-        const res = await fetch('/api/upload-zip', {
+        const res = await fetch(`/api/upload?stoneId=${encodeURIComponent(stoneId)}`, {
           method: 'POST',
           body: formData
         });
-
         const data = await res.json();
         if (res.ok && data.success) {
-          uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully created 360° view for '${data.stoneId}'!`;
-          showToast(`Item '${data.stoneId}' created!`);
+          uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully uploaded 360° scan for '${stoneId}'!`;
+          showToast(`Item '${stoneId}' uploaded!`);
           fetchItems();
         } else {
           uploadStatus.textContent = 'Upload failed: ' + (data.error || 'Unknown error');
