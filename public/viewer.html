@@ -38,7 +38,6 @@
       max-height: 100%;
       object-fit: contain;
     }
-    /* UI Overlay Controls */
     .controls {
       position: absolute;
       bottom: 20px;
@@ -76,7 +75,6 @@
       color: #38bdf8;
       background: rgba(56, 189, 248, 0.15);
     }
-    /* Loading Spinner */
     .loader-overlay {
       position: absolute;
       top: 0;
@@ -108,7 +106,6 @@
       font-size: 14px;
       color: #94a3b8;
     }
-    /* Stone Info Tag */
     .stone-tag {
       position: absolute;
       top: 20px;
@@ -148,7 +145,6 @@
   </div>
 
   <script>
-    // Get query parameter d=STONE_ID
     const urlParams = new URLSearchParams(window.location.search);
     const stoneId = urlParams.get('d') || 'sample_item';
     document.getElementById('stoneTag').textContent = `Stone ID: ${stoneId}`;
@@ -161,21 +157,43 @@
 
     let images = [];
     let currentFrame = 0;
-    let totalFrames = 36;
     let isDragging = false;
     let startX = 0;
     let autoPlayInterval = null;
     let scale = 1;
     let panX = 0, panY = 0;
 
-    // Probe total frames dynamically
     async function loadStone() {
+      // 1. Try V360 JSON array format (1.json, sm.json, 2.json)
+      const jsonFiles = ['1.json', 'sm.json', '2.json', '0.json'];
+      for (let jf of jsonFiles) {
+        try {
+          const res = await fetch(`/imaged/${stoneId}/${jf}`);
+          if (res.ok) {
+            const data = await res.json();
+            let base64List = [];
+            if (Array.isArray(data)) {
+              base64List = data;
+            } else if (data && data.image) {
+              base64List = [data.image];
+            }
+
+            if (base64List.length > 0) {
+              await loadBase64Images(base64List);
+              return;
+            }
+          }
+        } catch (e) {
+          console.log(`Check ${jf} failed, trying next format...`);
+        }
+      }
+
+      // 2. Try API lookup for image file list
       try {
         const res = await fetch(`/api/items/${stoneId}`);
         if (res.ok) {
           const data = await res.json();
           if (data.images && data.images.length > 0) {
-            totalFrames = data.images.length;
             await loadImagesCustom(data.images);
             return;
           }
@@ -184,8 +202,32 @@
         console.warn('API lookup failed, falling back to standard sequence probing');
       }
 
-      // Fallback: load standard 36 frame index series
+      // 3. Fallback standard file sequence
       await loadImagesStandard();
+    }
+
+    async function loadBase64Images(base64Arr) {
+      let loaded = 0;
+      images = new Array(base64Arr.length);
+
+      for (let i = 0; i < base64Arr.length; i++) {
+        const img = new Image();
+        let src = base64Arr[i];
+        if (typeof src === 'string' && !src.startsWith('data:image')) {
+          src = 'data:image/jpeg;base64,' + src;
+        }
+        img.src = src;
+        img.onload = () => {
+          loaded++;
+          progressText.textContent = `Loading 360° View... ${Math.round((loaded / base64Arr.length) * 100)}%`;
+          if (loaded === base64Arr.length) initViewer();
+        };
+        img.onerror = () => {
+          loaded++;
+          if (loaded === base64Arr.length) initViewer();
+        };
+        images[i] = img;
+      }
     }
 
     async function loadImagesCustom(fileList) {
@@ -198,9 +240,7 @@
         img.onload = () => {
           loaded++;
           progressText.textContent = `Loading 360° View... ${Math.round((loaded / fileList.length) * 100)}%`;
-          if (loaded === fileList.length) {
-            initViewer();
-          }
+          if (loaded === fileList.length) initViewer();
         };
         img.onerror = () => {
           loaded++;
@@ -217,7 +257,6 @@
 
       for (let i = 0; i < numFrames; i++) {
         const img = new Image();
-        // Try common frame naming patterns
         img.src = `/imaged/${stoneId}/frame_${i}.jpg`;
         img.onload = () => {
           loaded++;
@@ -225,7 +264,6 @@
           if (loaded === numFrames) initViewer();
         };
         img.onerror = () => {
-          // Fallback to i.jpg pattern
           img.src = `/imaged/${stoneId}/${i}.jpg`;
           loaded++;
           if (loaded === numFrames) initViewer();
@@ -255,7 +293,7 @@
       const img = images[currentFrame];
 
       const canvasAspect = canvas.width / canvas.height;
-      const imgAspect = img.width / img.height;
+      const imgAspect = (img.width || 1) / (img.height || 1);
       let drawW, drawH;
 
       if (canvasAspect > imgAspect) {
@@ -272,7 +310,7 @@
       ctx.drawImage(img, x, y, drawW, drawH);
     }
 
-    // Drag Interaction (Mouse + Touch)
+    // Drag Interaction
     container.addEventListener('mousedown', (e) => {
       isDragging = true;
       startX = e.clientX;
@@ -297,7 +335,7 @@
 
     window.addEventListener('mouseup', () => isDragging = false);
 
-    // Touch Support
+    // Touch Interaction
     container.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
         isDragging = true;
@@ -323,7 +361,7 @@
 
     container.addEventListener('touchend', () => isDragging = false);
 
-    // Button Controls
+    // Controls
     document.getElementById('btnPrev').addEventListener('click', () => {
       currentFrame = (currentFrame - 1 + images.length) % images.length;
       render();
@@ -380,7 +418,6 @@
       render();
     });
 
-    // Start loading
     loadStone();
   </script>
 </body>

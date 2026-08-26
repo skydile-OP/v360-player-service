@@ -24,7 +24,6 @@ if (!fs.existsSync(TEMP_UPLOAD_DIR)) {
   fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
 }
 
-// Multer storage for office PC upload & Web ZIP upload API
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const isZip = file.originalname.toLowerCase().endsWith('.zip');
@@ -44,34 +43,26 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Serve static frontend player assets & Dashboard
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Redirect root URL to Dashboard UI
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// -------------------------------------------------------------
-// V360 Compatibility Asset Routes
-// V360 player requests: /imaged/:stoneId/:filename
-// -------------------------------------------------------------
+// V360 Asset Route
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
-  // 1. Check if S3 / Cloudflare R2 CDN base URL is set
   if (process.env.STORAGE_CDN_URL) {
     const remoteUrl = `${process.env.STORAGE_CDN_URL.replace(/\/$/, '')}/${stoneId}/${filename}`;
     return res.redirect(302, remoteUrl);
   }
 
-  // 2. Fallback to local media folder on server
   const filePath = path.join(MEDIA_DIR, stoneId, filename);
   if (fs.existsSync(filePath)) {
     return res.sendFile(filePath);
   }
 
-  // 3. Fallback check for demo/sample files if requested
   const samplePath = path.join(MEDIA_DIR, 'sample_item', filename);
   if (fs.existsSync(samplePath)) {
     return res.sendFile(samplePath);
@@ -80,9 +71,6 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
   return res.status(404).json({ error: 'Asset not found', stoneId, filename });
 });
 
-// -------------------------------------------------------------
-// Embed Helper Routes
-// -------------------------------------------------------------
 app.get('/embed/:stoneId', (req, res) => {
   const { stoneId } = req.params;
   const playerType = req.query.player || 'modern';
@@ -93,11 +81,43 @@ app.get('/embed/:stoneId', (req, res) => {
   return res.redirect(`/viewer.html?d=${encodeURIComponent(stoneId)}`);
 });
 
-// -------------------------------------------------------------
-// API Endpoints for Dashboard & Management Portal
-// -------------------------------------------------------------
+// Helper to inspect frame counts inside V360 json files
+function getStoneFrameInfo(stoneDir, stoneId) {
+  const files = fs.readdirSync(stoneDir);
+  const images = files
+    .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
-// List all scanned stones with full metadata for Dashboard gallery
+  let frameCount = images.length;
+
+  // Check 1.json or sm.json for base64 frame arrays
+  for (let jsonFile of ['1.json', 'sm.json', '2.json']) {
+    const jPath = path.join(stoneDir, jsonFile);
+    if (fs.existsSync(jPath)) {
+      try {
+        const raw = fs.readFileSync(jPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          frameCount = parsed.length;
+          break;
+        }
+      } catch (e) {}
+    }
+  }
+
+  let thumbnail = null;
+  if (files.includes('still.jpg')) {
+    thumbnail = `/imaged/${stoneId}/still.jpg`;
+  } else if (images.length > 0) {
+    thumbnail = `/imaged/${stoneId}/${images[0]}`;
+  } else {
+    thumbnail = `/css/images/info.png`;
+  }
+
+  return { frameCount, thumbnail, files, images };
+}
+
+// API: List items
 app.get('/api/items', (req, res) => {
   try {
     const items = fs.readdirSync(MEDIA_DIR).filter(item => {
@@ -108,17 +128,12 @@ app.get('/api/items', (req, res) => {
 
     const itemList = items.map(stoneId => {
       const stoneDir = path.join(MEDIA_DIR, stoneId);
-      const files = fs.readdirSync(stoneDir);
-      const images = files
-        .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-
       const stats = fs.statSync(stoneDir);
-      const thumbnail = images.length > 0 ? `/imaged/${stoneId}/${images[0]}` : null;
+      const { frameCount, thumbnail } = getStoneFrameInfo(stoneDir, stoneId);
 
       return {
         stoneId,
-        frameCount: images.length,
+        frameCount,
         thumbnail,
         createdAt: stats.mtime.toISOString(),
         v360Url: `${host}/vision360.html?d=${stoneId}`,
@@ -133,7 +148,7 @@ app.get('/api/items', (req, res) => {
   }
 });
 
-// Item detail API
+// API: Item detail
 app.get('/api/items/:stoneId', (req, res) => {
   const { stoneId } = req.params;
   const stoneDir = path.join(MEDIA_DIR, stoneId);
@@ -142,17 +157,13 @@ app.get('/api/items/:stoneId', (req, res) => {
     return res.status(404).json({ error: 'Stone not found' });
   }
 
-  const files = fs.readdirSync(stoneDir);
-  const images = files
-    .filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f))
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-
+  const { frameCount, thumbnail, files, images } = getStoneFrameInfo(stoneDir, stoneId);
   const jsonFiles = files.filter(f => f.endsWith('.json'));
 
   res.json({
     stoneId,
     totalFiles: files.length,
-    totalFrames: images.length,
+    totalFrames: frameCount,
     images,
     jsonFiles,
     v360Url: `/vision360.html?d=${stoneId}`,
@@ -160,7 +171,6 @@ app.get('/api/items/:stoneId', (req, res) => {
   });
 });
 
-// Delete item API
 app.delete('/api/items/:stoneId', (req, res) => {
   const { stoneId } = req.params;
   const stoneDir = path.join(MEDIA_DIR, stoneId);
@@ -172,7 +182,6 @@ app.delete('/api/items/:stoneId', (req, res) => {
   res.status(404).json({ error: 'Stone not found' });
 });
 
-// Web Drag-and-Drop ZIP Upload API
 app.post('/api/upload-zip', upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No ZIP file uploaded' });
@@ -186,7 +195,6 @@ app.post('/api/upload-zip', upload.single('file'), (req, res) => {
     const zip = new AdmZip(zipPath);
     const zipEntries = zip.getEntries();
     
-    // Check if zip contains a single top-level folder
     let targetStoneId = customStoneId || defaultStoneId;
     const topLevelFolders = new Set();
     zipEntries.forEach(entry => {
@@ -215,9 +223,7 @@ app.post('/api/upload-zip', upload.single('file'), (req, res) => {
       }
     });
 
-    // Clean up uploaded temp zip file
     fs.unlinkSync(zipPath);
-
     const host = `${req.protocol}://${req.get('host')}`;
 
     res.json({
@@ -234,7 +240,6 @@ app.post('/api/upload-zip', upload.single('file'), (req, res) => {
   }
 });
 
-// Direct Image Files Upload API (for web or script)
 app.post('/api/upload', upload.array('files'), (req, res) => {
   const stoneId = req.body.stoneId || req.query.stoneId;
   if (!stoneId) {
@@ -252,16 +257,13 @@ app.post('/api/upload', upload.array('files'), (req, res) => {
   });
 });
 
-// Health check endpoint for Railway
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Start server
 app.listen(PORT, () => {
   console.log(`=================================================`);
   console.log(` V360 Standalone Player & Dashboard Service Running`);
   console.log(` Listening on port: ${PORT}`);
-  console.log(` Dashboard URL: http://localhost:${PORT}/`);
   console.log(`=================================================`);
 });
