@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>V360 Cloud Dashboard - Self-Hosted Diamond & Jewelry Portal</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Header Navbar */
+    .navbar {
+      background-color: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+    .logo i {
+      font-size: 24px;
+    }
+    .badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    /* Main Content Container */
+    .container {
+      max-width: 1280px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 32px 24px;
+      flex: 1;
+    }
+    /* Upload Card */
+    .upload-card {
+      background: #1e293b;
+      border: 2px dashed #475569;
+      border-radius: 16px;
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      margin-bottom: 36px;
+      position: relative;
+    }
+    .upload-card:hover, .upload-card.dragover {
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.05);
+    }
+    .upload-icon {
+      font-size: 48px;
+      color: #38bdf8;
+      margin-bottom: 16px;
+    }
+    .upload-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .upload-subtitle {
+      font-size: 14px;
+      color: #94a3b8;
+      margin-bottom: 20px;
+    }
+    .btn-upload {
+      background: #38bdf8;
+      color: #0f172a;
+      font-weight: 600;
+      padding: 10px 24px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-upload:hover {
+      background: #7dd3fc;
+    }
+    #fileInput {
+      display: none;
+    }
+
+    /* Section Bar */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .section-title {
+      font-size: 22px;
+      font-weight: 700;
+    }
+    .search-box {
+      position: relative;
+      width: 300px;
+    }
+    .search-box input {
+      width: 100%;
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 10px 16px 10px 40px;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+    }
+    .search-box i {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #64748b;
+    }
+
+    /* Items Grid Gallery */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+      border-color: #475569;
+    }
+    .card-thumb {
+      width: 100%;
+      height: 220px;
+      background: #090d16;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .card-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .card-badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(6px);
+      color: #38bdf8;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+    .card-body {
+      padding: 18px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .stone-id {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #f8fafc;
+    }
+    .card-meta {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+    }
+    .card-actions {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .btn-action-main {
+      width: 100%;
+      background: #0284c7;
+      color: #fff;
+      font-weight: 600;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .btn-action-main:hover {
+      background: #0369a1;
+    }
+    .btn-group-sm {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-sm {
+      flex: 1;
+      background: #334155;
+      color: #cbd5e1;
+      font-size: 12px;
+      padding: 8px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: background 0.2s ease;
+    }
+    .btn-sm:hover {
+      background: #475569;
+      color: #fff;
+    }
+    .btn-delete {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+    }
+    .btn-delete:hover {
+      background: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+
+    /* Modal Viewer Overlay */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-content {
+      width: 90%;
+      max-width: 900px;
+      height: 80vh;
+      background: #0b0f19;
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #334155;
+    }
+    .modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(15, 23, 42, 0.8);
+      color: #fff;
+      border: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 10;
+      font-size: 18px;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    /* Toast Notifications */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #10b981;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      display: none;
+      z-index: 2000;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="logo">
+      <i class="fa-solid fa-gem"></i>
+      <span>V360 Dashboard</span>
+    </div>
+    <span class="badge">Self-Hosted Railway Server</span>
+  </nav>
+
+  <div class="container">
+    <!-- Web Drag & Drop Upload -->
+    <div class="upload-card" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+      <div class="upload-title" id="uploadStatus">Upload New 360° Scan ZIP or Folder</div>
+      <div class="upload-subtitle">Drag & drop your scanned ZIP file here, or click to browse</div>
+      <button class="btn-upload" type="button">
+        <i class="fa-solid fa-folder-open"></i> Select ZIP File
+      </button>
+      <input type="file" id="fileInput" accept=".zip">
+    </div>
+
+    <!-- Section Title & Search -->
+    <div class="section-header">
+      <div class="section-title">
+        Scanned Items (<span id="itemCount">0</span>)
+      </div>
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="searchInput" placeholder="Search by Stone ID...">
+      </div>
+    </div>
+
+    <!-- Inventory Grid -->
+    <div class="grid" id="itemsGrid">
+      <div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 40px;">
+        Loading 360° items inventory...
+      </div>
+    </div>
+  </div>
+
+  <!-- Interactive Viewer Modal -->
+  <div class="modal" id="viewerModal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()">✕</button>
+      <iframe id="modalIframe" src=""></iframe>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Copied link to clipboard!</div>
+
+  <script>
+    let allItems = [];
+
+    async function fetchItems() {
+      try {
+        const res = await fetch('/api/items');
+        const data = await res.json();
+        allItems = data.items || [];
+        renderItems(allItems);
+      } catch (err) {
+        console.error('Failed to load items:', err);
+      }
+    }
+
+    function renderItems(items) {
+      const grid = document.getElementById('itemsGrid');
+      document.getElementById('itemCount').textContent = items.length;
+
+      if (items.length === 0) {
+        grid.innerHTML = `
+          <div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 60px;">
+            <i class="fa-solid fa-gem" style="font-size: 40px; margin-bottom: 12px;"></i>
+            <p>No 360° items uploaded yet. Drag & drop a scan ZIP file above to add your first item!</p>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = items.map(item => `
+        <div class="card">
+          <div class="card-thumb">
+            <span class="card-badge">${item.frameCount} Frames</span>
+            <img src="${item.thumbnail || '/css/images/info.png'}" alt="${item.stoneId}" onerror="this.src='/css/images/info.png'">
+          </div>
+          <div class="card-body">
+            <div class="stone-id">${item.stoneId}</div>
+            <div class="card-meta">Scanned: ${new Date(item.createdAt).toLocaleDateString()}</div>
+            <div class="card-actions">
+              <button class="btn-action-main" onclick="openModal('${item.v360Url}')">
+                <i class="fa-solid fa-arrows-spin"></i> View Interactive 360°
+              </button>
+              <div class="btn-group-sm">
+                <button class="btn-sm" onclick="copyToClipboard('${item.modernUrl}')">
+                  <i class="fa-solid fa-link"></i> Copy Link
+                </button>
+                <button class="btn-sm" onclick="copyToClipboard('${item.embedCode}')">
+                  <i class="fa-solid fa-code"></i> Iframe Code
+                </button>
+              </div>
+              <div class="btn-group-sm">
+                <button class="btn-sm" onclick="shareWhatsApp('${item.stoneId}', '${item.modernUrl}')">
+                  <i class="fa-brands fa-whatsapp"></i> WhatsApp
+                </button>
+                <button class="btn-sm btn-delete" onclick="deleteItem('${item.stoneId}')">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Search filter
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const filtered = allItems.filter(item => item.stoneId.toLowerCase().includes(q));
+      renderItems(filtered);
+    });
+
+    // Modal logic
+    function openModal(url) {
+      document.getElementById('modalIframe').src = url;
+      document.getElementById('viewerModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('viewerModal').style.display = 'none';
+      document.getElementById('modalIframe').src = '';
+    }
+
+    // Clipboard helper
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied to clipboard!');
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => toast.style.display = 'none', 2500);
+    }
+
+    function shareWhatsApp(stoneId, url) {
+      const msg = encodeURIComponent(`Check out the 360° view of diamond ${stoneId}: ${url}`);
+      window.open(`https://wa.me/?text=${msg}`, '_blank');
+    }
+
+    async function deleteItem(stoneId) {
+      if (!confirm(`Are you sure you want to delete 360° scan for ${stoneId}?`)) return;
+      try {
+        const res = await fetch(`/api/items/${stoneId}`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast(`Deleted ${stoneId}`);
+          fetchItems();
+        }
+      } catch (err) {
+        alert('Failed to delete item: ' + err.message);
+      }
+    }
+
+    // File Upload Logic (Drag & Drop + Input)
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleUpload(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        handleUpload(fileInput.files[0]);
+      }
+    });
+
+    async function handleUpload(file) {
+      if (!file.name.toLowerCase().endswith && !file.name.toLowerCase().endsWith('.zip')) {
+        alert('Please upload a ZIP file containing the 360° scan images/folder.');
+        return;
+      }
+
+      const uploadStatus = document.getElementById('uploadStatus');
+      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Unzipping '${file.name}'...`;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/api/upload-zip', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+          uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully created 360° view for '${data.stoneId}'!`;
+          showToast(`Item '${data.stoneId}' created!`);
+          fetchItems();
+        } else {
+          uploadStatus.textContent = 'Upload failed: ' + (data.error || 'Unknown error');
+        }
+      } catch (err) {
+        uploadStatus.textContent = 'Upload error: ' + err.message;
+      }
+    }
+
+    // Initial load
+    fetchItems();
+  </script>
+</body>
+</html>
