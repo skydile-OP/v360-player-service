@@ -9,6 +9,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust Railway HTTPS reverse proxy
+app.enable('trust proxy');
+
 app.use(cors());
 app.use(express.json());
 
@@ -41,23 +44,19 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Serve static frontend player assets & Dashboard
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// -------------------------------------------------------------
 // V360 Player Route - Serves standalone HTML viewer if exported
-// -------------------------------------------------------------
 app.get('/vision360.html', (req, res) => {
   const stoneId = req.query.d;
   if (stoneId) {
     const stoneDir = path.join(MEDIA_DIR, stoneId);
     if (fs.existsSync(stoneDir)) {
       const files = fs.readdirSync(stoneDir);
-      // Look for standalone exported HTML file (e.g. SE313.html)
       const standaloneHtml = files.find(f => 
         f.toLowerCase() === `${stoneId.toLowerCase()}.html` ||
         (f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html')
@@ -71,9 +70,7 @@ app.get('/vision360.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
 });
 
-// -------------------------------------------------------------
 // V360 Asset Route - Serves imaged/:stoneId/:filename
-// -------------------------------------------------------------
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
@@ -105,7 +102,6 @@ app.get('/embed/:stoneId', (req, res) => {
   return res.redirect(`/vision360.html?d=${encodeURIComponent(stoneId)}`);
 });
 
-// Helper to extract frame info and thumbnail for any V360 folder
 function getStoneFrameInfo(stoneDir, stoneId) {
   const files = fs.readdirSync(stoneDir);
   const images = files
@@ -116,7 +112,6 @@ function getStoneFrameInfo(stoneDir, stoneId) {
   let hasVideo = files.includes('video.mp4');
   let hasHtml = files.some(f => f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html');
 
-  // Check 1.json or sm.json for base64 frame arrays
   for (let jsonFile of ['1.json', 'sm.json', '2.json', '8.json']) {
     const jPath = path.join(stoneDir, jsonFile);
     if (fs.existsSync(jPath)) {
@@ -143,14 +138,16 @@ function getStoneFrameInfo(stoneDir, stoneId) {
   return { frameCount, thumbnail, files, images, hasVideo, hasHtml };
 }
 
-// API: List items for Dashboard
+// API: List items for Dashboard (Uses relative URLs & HTTPS)
 app.get('/api/items', (req, res) => {
   try {
     const items = fs.readdirSync(MEDIA_DIR).filter(item => {
       return item !== 'temp_uploads' && fs.statSync(path.join(MEDIA_DIR, item)).isDirectory();
     });
     
-    const host = `${req.protocol}://${req.get('host')}`;
+    const hostHeader = req.get('host');
+    const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const baseUrl = `${proto}://${hostHeader}`;
 
     const itemList = items.map(stoneId => {
       const stoneDir = path.join(MEDIA_DIR, stoneId);
@@ -163,11 +160,13 @@ app.get('/api/items', (req, res) => {
         thumbnail,
         hasVideo,
         hasHtml,
-        videoUrl: hasVideo ? `${host}/imaged/${stoneId}/video.mp4` : null,
+        videoUrl: hasVideo ? `/imaged/${stoneId}/video.mp4` : null,
         createdAt: stats.mtime.toISOString(),
-        v360Url: `${host}/vision360.html?d=${stoneId}`,
-        modernUrl: `${host}/viewer.html?d=${stoneId}`,
-        embedCode: `<iframe src="${host}/vision360.html?d=${stoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
+        v360Url: `/vision360.html?d=${stoneId}`,
+        modernUrl: `/viewer.html?d=${stoneId}`,
+        fullV360Url: `${baseUrl}/vision360.html?d=${stoneId}`,
+        fullModernUrl: `${baseUrl}/viewer.html?d=${stoneId}`,
+        embedCode: `<iframe src="${baseUrl}/vision360.html?d=${stoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
       };
     }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
@@ -255,15 +254,17 @@ app.post('/api/upload-zip', upload.single('file'), (req, res) => {
     });
 
     fs.unlinkSync(zipPath);
-    const host = `${req.protocol}://${req.get('host')}`;
+    const hostHeader = req.get('host');
+    const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const baseUrl = `${proto}://${hostHeader}`;
 
     res.json({
       success: true,
       stoneId: targetStoneId,
       message: `Successfully unzipped and created 360° item '${targetStoneId}'`,
-      v360Url: `${host}/vision360.html?d=${targetStoneId}`,
-      modernUrl: `${host}/viewer.html?d=${targetStoneId}`,
-      embedCode: `<iframe src="${host}/vision360.html?d=${targetStoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
+      v360Url: `${baseUrl}/vision360.html?d=${targetStoneId}`,
+      modernUrl: `${baseUrl}/viewer.html?d=${targetStoneId}`,
+      embedCode: `<iframe src="${baseUrl}/vision360.html?d=${targetStoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
     });
   } catch (err) {
     if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
@@ -277,14 +278,16 @@ app.post('/api/upload', upload.array('files'), (req, res) => {
     return res.status(400).json({ error: 'Missing stoneId parameter' });
   }
 
-  const host = `${req.protocol}://${req.get('host')}`;
+  const hostHeader = req.get('host');
+  const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+  const baseUrl = `${proto}://${hostHeader}`;
 
   res.json({
     success: true,
     message: `Successfully uploaded ${req.files ? req.files.length : 0} files for stone ${stoneId}`,
     stoneId,
-    modernUrl: `${host}/viewer.html?d=${stoneId}`,
-    v360Url: `${host}/vision360.html?d=${stoneId}`
+    modernUrl: `${baseUrl}/viewer.html?d=${stoneId}`,
+    v360Url: `${baseUrl}/vision360.html?d=${stoneId}`
   });
 });
 
