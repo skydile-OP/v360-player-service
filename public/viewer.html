@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>360° Diamond & Jewelry Interactive Viewer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #0b0f19;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+    #container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle, #1a2336 0%, #080c14 100%);
+      cursor: grab;
+    }
+    #container:active {
+      cursor: grabbing;
+    }
+    canvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    /* UI Overlay Controls */
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(8px);
+      padding: 8px 16px;
+      border-radius: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      z-index: 10;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: all 0.2s ease;
+    }
+    .btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .btn.active {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+    }
+    /* Loading Spinner */
+    .loader-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0b0f19;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      transition: opacity 0.4s ease;
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid rgba(56, 189, 248, 0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 1s infinite linear;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .progress-text {
+      margin-top: 16px;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    /* Stone Info Tag */
+    .stone-tag {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(8px);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="container">
+    <div class="stone-tag" id="stoneTag">ID: ---</div>
+    
+    <div class="loader-overlay" id="loader">
+      <div class="spinner"></div>
+      <div class="progress-text" id="progressText">Loading 360° View... 0%</div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <div class="controls">
+      <button class="btn" id="btnPrev" title="Rotate Left">◀</button>
+      <button class="btn" id="btnPlay" title="Auto Rotate">▶</button>
+      <button class="btn" id="btnNext" title="Rotate Right">▶</button>
+      <button class="btn" id="btnZoomIn" title="Zoom In">+</button>
+      <button class="btn" id="btnZoomOut" title="Zoom Out">-</button>
+      <button class="btn" id="btnReset" title="Reset View">↺</button>
+    </div>
+  </div>
+
+  <script>
+    // Get query parameter d=STONE_ID
+    const urlParams = new URLSearchParams(window.location.search);
+    const stoneId = urlParams.get('d') || 'sample_item';
+    document.getElementById('stoneTag').textContent = `Stone ID: ${stoneId}`;
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const loader = document.getElementById('loader');
+    const progressText = document.getElementById('progressText');
+    const container = document.getElementById('container');
+
+    let images = [];
+    let currentFrame = 0;
+    let totalFrames = 36;
+    let isDragging = false;
+    let startX = 0;
+    let autoPlayInterval = null;
+    let scale = 1;
+    let panX = 0, panY = 0;
+
+    // Probe total frames dynamically
+    async function loadStone() {
+      try {
+        const res = await fetch(`/api/items/${stoneId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.images && data.images.length > 0) {
+            totalFrames = data.images.length;
+            await loadImagesCustom(data.images);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('API lookup failed, falling back to standard sequence probing');
+      }
+
+      // Fallback: load standard 36 frame index series
+      await loadImagesStandard();
+    }
+
+    async function loadImagesCustom(fileList) {
+      let loaded = 0;
+      images = new Array(fileList.length);
+
+      for (let i = 0; i < fileList.length; i++) {
+        const img = new Image();
+        img.src = `/imaged/${stoneId}/${fileList[i]}`;
+        img.onload = () => {
+          loaded++;
+          progressText.textContent = `Loading 360° View... ${Math.round((loaded / fileList.length) * 100)}%`;
+          if (loaded === fileList.length) {
+            initViewer();
+          }
+        };
+        img.onerror = () => {
+          loaded++;
+          if (loaded === fileList.length) initViewer();
+        };
+        images[i] = img;
+      }
+    }
+
+    async function loadImagesStandard() {
+      let loaded = 0;
+      images = [];
+      const numFrames = 36;
+
+      for (let i = 0; i < numFrames; i++) {
+        const img = new Image();
+        // Try common frame naming patterns
+        img.src = `/imaged/${stoneId}/frame_${i}.jpg`;
+        img.onload = () => {
+          loaded++;
+          progressText.textContent = `Loading 360° View... ${Math.round((loaded / numFrames) * 100)}%`;
+          if (loaded === numFrames) initViewer();
+        };
+        img.onerror = () => {
+          // Fallback to i.jpg pattern
+          img.src = `/imaged/${stoneId}/${i}.jpg`;
+          loaded++;
+          if (loaded === numFrames) initViewer();
+        };
+        images.push(img);
+      }
+    }
+
+    function initViewer() {
+      loader.style.opacity = '0';
+      setTimeout(() => loader.style.display = 'none', 400);
+      resizeCanvas();
+      render();
+    }
+
+    function resizeCanvas() {
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+      render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function render() {
+      if (images.length === 0 || !images[currentFrame] || !images[currentFrame].complete) return;
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const img = images[currentFrame];
+
+      const canvasAspect = canvas.width / canvas.height;
+      const imgAspect = img.width / img.height;
+      let drawW, drawH;
+
+      if (canvasAspect > imgAspect) {
+        drawH = canvas.height * scale;
+        drawW = drawH * imgAspect;
+      } else {
+        drawW = canvas.width * scale;
+        drawH = drawW / imgAspect;
+      }
+
+      const x = (canvas.width - drawW) / 2 + panX;
+      const y = (canvas.height - drawH) / 2 + panY;
+
+      ctx.drawImage(img, x, y, drawW, drawH);
+    }
+
+    // Drag Interaction (Mouse + Touch)
+    container.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      stopAutoPlay();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging || images.length === 0) return;
+      const deltaX = e.clientX - startX;
+      const sensitivity = 8;
+      
+      if (Math.abs(deltaX) > sensitivity) {
+        if (deltaX > 0) {
+          currentFrame = (currentFrame - 1 + images.length) % images.length;
+        } else {
+          currentFrame = (currentFrame + 1) % images.length;
+        }
+        startX = e.clientX;
+        render();
+      }
+    });
+
+    window.addEventListener('mouseup', () => isDragging = false);
+
+    // Touch Support
+    container.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        isDragging = true;
+        startX = e.touches[0].clientX;
+        stopAutoPlay();
+      }
+    });
+
+    container.addEventListener('touchmove', (e) => {
+      if (!isDragging || e.touches.length !== 1) return;
+      const deltaX = e.touches[0].clientX - startX;
+      const sensitivity = 8;
+      if (Math.abs(deltaX) > sensitivity) {
+        if (deltaX > 0) {
+          currentFrame = (currentFrame - 1 + images.length) % images.length;
+        } else {
+          currentFrame = (currentFrame + 1) % images.length;
+        }
+        startX = e.touches[0].clientX;
+        render();
+      }
+    });
+
+    container.addEventListener('touchend', () => isDragging = false);
+
+    // Button Controls
+    document.getElementById('btnPrev').addEventListener('click', () => {
+      currentFrame = (currentFrame - 1 + images.length) % images.length;
+      render();
+    });
+
+    document.getElementById('btnNext').addEventListener('click', () => {
+      currentFrame = (currentFrame + 1) % images.length;
+      render();
+    });
+
+    const btnPlay = document.getElementById('btnPlay');
+    btnPlay.addEventListener('click', () => {
+      if (autoPlayInterval) {
+        stopAutoPlay();
+      } else {
+        startAutoPlay();
+      }
+    });
+
+    function startAutoPlay() {
+      btnPlay.classList.add('active');
+      btnPlay.textContent = '⏸';
+      autoPlayInterval = setInterval(() => {
+        currentFrame = (currentFrame + 1) % images.length;
+        render();
+      }, 70);
+    }
+
+    function stopAutoPlay() {
+      if (autoPlayInterval) {
+        clearInterval(autoPlayInterval);
+        autoPlayInterval = null;
+        btnPlay.classList.remove('active');
+        btnPlay.textContent = '▶';
+      }
+    }
+
+    document.getElementById('btnZoomIn').addEventListener('click', () => {
+      scale = Math.min(scale * 1.25, 4);
+      render();
+    });
+
+    document.getElementById('btnZoomOut').addEventListener('click', () => {
+      scale = Math.max(scale / 1.25, 1);
+      if (scale === 1) { panX = 0; panY = 0; }
+      render();
+    });
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+      scale = 1;
+      panX = 0;
+      panY = 0;
+      currentFrame = 0;
+      render();
+    });
+
+    // Start loading
+    loadStone();
+  </script>
+</body>
+</html>

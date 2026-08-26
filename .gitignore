@@ -1,0 +1,6 @@
+node_modules/
+.env
+*.log
+data/media/*
+!data/media/sample_item
+.DS_Store
