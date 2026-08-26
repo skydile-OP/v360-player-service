@@ -1,5 +1,5 @@
 @echo off
-TITLE V360 Office PC Sync - 1-Click Setup
+TITLE V360 Office PC Sync Launcher
 COLOR 0A
 cls
 
@@ -8,7 +8,7 @@ echo           V360 Office PC Automatic Sync Launcher
 echo ================================================================
 echo.
 
-:: Automatically open the Web Dashboard in browser for easy viewing
+:: Automatically open your Web Dashboard in Chrome
 echo [*] Opening your V360 Web Dashboard in Chrome...
 start https://perpetual-harmony-production-451e.up.railway.app/
 
@@ -31,31 +31,25 @@ if %errorlevel% neq 0 (
     python -m pip install requests
 )
 
-:: Create pre-configured config.json automatically
-echo [*] Writing automatic pre-configuration...
+:: Create pre-configured config.json targeting E:\vision360_data
+echo [*] Writing automatic pre-configuration for E:\vision360_data...
 (
 echo {
-echo     "v360_export_dir": "C:\\V360_Exports",
+echo     "v360_export_dir": "E:\\vision360_data",
 echo     "railway_service_url": "https://perpetual-harmony-production-451e.up.railway.app",
 echo     "check_interval_seconds": 10
 echo }
 ) > config.json
 
-:: Ensure export directory exists
-if not exist "C:\V360_Exports" (
-    mkdir "C:\V360_Exports"
-    echo [*] Created watching folder: C:\V360_Exports
-)
-
 echo.
 echo ================================================================
 echo   [SUCCESS] V360 Sync is now ACTIVE!
-echo   Watching folder: C:\V360_Exports
+echo   Watching folder: E:\vision360_data
 echo   Web Dashboard:   https://perpetual-harmony-production-451e.up.railway.app/
 echo ================================================================
 echo.
-echo Any 360 scan folder saved in C:\V360_Exports will automatically sync!
-echo Open https://perpetual-harmony-production-451e.up.railway.app/ anytime to view all items.
+echo Any scanned diamond folder in E:\vision360_data will automatically sync!
+echo Keep this window open or minimized while scanning.
 echo.
 
 python v360_uploader.py
