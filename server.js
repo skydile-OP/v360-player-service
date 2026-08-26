@@ -9,7 +9,6 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Trust Railway HTTPS reverse proxy
 app.enable('trust proxy');
 
 app.use(cors());
@@ -50,26 +49,6 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// V360 Player Route - Serves standalone HTML viewer if exported
-app.get('/vision360.html', (req, res) => {
-  const stoneId = req.query.d;
-  if (stoneId) {
-    const stoneDir = path.join(MEDIA_DIR, stoneId);
-    if (fs.existsSync(stoneDir)) {
-      const files = fs.readdirSync(stoneDir);
-      const standaloneHtml = files.find(f => 
-        f.toLowerCase() === `${stoneId.toLowerCase()}.html` ||
-        (f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html')
-      );
-
-      if (standaloneHtml) {
-        return res.sendFile(path.join(stoneDir, standaloneHtml));
-      }
-    }
-  }
-  res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
-});
-
 // V360 Asset Route - Serves imaged/:stoneId/:filename
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
@@ -94,12 +73,7 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
 
 app.get('/embed/:stoneId', (req, res) => {
   const { stoneId } = req.params;
-  const playerType = req.query.player || 'v360';
-  
-  if (playerType === 'modern') {
-    return res.redirect(`/viewer.html?d=${encodeURIComponent(stoneId)}`);
-  }
-  return res.redirect(`/vision360.html?d=${encodeURIComponent(stoneId)}`);
+  return res.redirect(`/viewer.html?d=${encodeURIComponent(stoneId)}`);
 });
 
 function getStoneFrameInfo(stoneDir, stoneId) {
@@ -138,7 +112,7 @@ function getStoneFrameInfo(stoneDir, stoneId) {
   return { frameCount, thumbnail, files, images, hasVideo, hasHtml };
 }
 
-// API: List items for Dashboard (Uses relative URLs & HTTPS)
+// API: List items for Dashboard (Points default viewer to ultra-fast modern viewer.html)
 app.get('/api/items', (req, res) => {
   try {
     const items = fs.readdirSync(MEDIA_DIR).filter(item => {
@@ -162,11 +136,11 @@ app.get('/api/items', (req, res) => {
         hasHtml,
         videoUrl: hasVideo ? `/imaged/${stoneId}/video.mp4` : null,
         createdAt: stats.mtime.toISOString(),
-        v360Url: `/vision360.html?d=${stoneId}`,
+        v360Url: `/viewer.html?d=${stoneId}`,
         modernUrl: `/viewer.html?d=${stoneId}`,
-        fullV360Url: `${baseUrl}/vision360.html?d=${stoneId}`,
+        fullV360Url: `${baseUrl}/viewer.html?d=${stoneId}`,
         fullModernUrl: `${baseUrl}/viewer.html?d=${stoneId}`,
-        embedCode: `<iframe src="${baseUrl}/vision360.html?d=${stoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
+        embedCode: `<iframe src="${baseUrl}/viewer.html?d=${stoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
       };
     }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
@@ -196,7 +170,7 @@ app.get('/api/items/:stoneId', (req, res) => {
     jsonFiles,
     hasVideo,
     hasHtml,
-    v360Url: `/vision360.html?d=${stoneId}`,
+    v360Url: `/viewer.html?d=${stoneId}`,
     modernUrl: `/viewer.html?d=${stoneId}`
   });
 });
@@ -262,9 +236,9 @@ app.post('/api/upload-zip', upload.single('file'), (req, res) => {
       success: true,
       stoneId: targetStoneId,
       message: `Successfully unzipped and created 360° item '${targetStoneId}'`,
-      v360Url: `${baseUrl}/vision360.html?d=${targetStoneId}`,
+      v360Url: `${baseUrl}/viewer.html?d=${targetStoneId}`,
       modernUrl: `${baseUrl}/viewer.html?d=${targetStoneId}`,
-      embedCode: `<iframe src="${baseUrl}/vision360.html?d=${targetStoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
+      embedCode: `<iframe src="${baseUrl}/viewer.html?d=${targetStoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
     });
   } catch (err) {
     if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
@@ -287,7 +261,7 @@ app.post('/api/upload', upload.array('files'), (req, res) => {
     message: `Successfully uploaded ${req.files ? req.files.length : 0} files for stone ${stoneId}`,
     stoneId,
     modernUrl: `${baseUrl}/viewer.html?d=${stoneId}`,
-    v360Url: `${baseUrl}/vision360.html?d=${stoneId}`
+    v360Url: `${baseUrl}/viewer.html?d=${stoneId}`
   });
 });
 
