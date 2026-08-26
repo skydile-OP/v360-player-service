@@ -9,11 +9,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Enable CORS for embedding in external websites & client portals
 app.use(cors());
 app.use(express.json());
 
-// Media Storage Directory for local deployment / disk backup
 const MEDIA_DIR = process.env.MEDIA_DIR || path.join(__dirname, 'data', 'media');
 if (!fs.existsSync(MEDIA_DIR)) {
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
@@ -43,13 +41,39 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Serve static frontend player assets & Dashboard
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// V360 Asset Route
+// -------------------------------------------------------------
+// V360 Player Route - Serves standalone HTML viewer if exported
+// -------------------------------------------------------------
+app.get('/vision360.html', (req, res) => {
+  const stoneId = req.query.d;
+  if (stoneId) {
+    const stoneDir = path.join(MEDIA_DIR, stoneId);
+    if (fs.existsSync(stoneDir)) {
+      const files = fs.readdirSync(stoneDir);
+      // Look for standalone exported HTML file (e.g. SE313.html)
+      const standaloneHtml = files.find(f => 
+        f.toLowerCase() === `${stoneId.toLowerCase()}.html` ||
+        (f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html')
+      );
+
+      if (standaloneHtml) {
+        return res.sendFile(path.join(stoneDir, standaloneHtml));
+      }
+    }
+  }
+  res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
+});
+
+// -------------------------------------------------------------
+// V360 Asset Route - Serves imaged/:stoneId/:filename
+// -------------------------------------------------------------
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
@@ -73,15 +97,15 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
 
 app.get('/embed/:stoneId', (req, res) => {
   const { stoneId } = req.params;
-  const playerType = req.query.player || 'modern';
+  const playerType = req.query.player || 'v360';
   
-  if (playerType === 'v360') {
-    return res.redirect(`/vision360.html?d=${encodeURIComponent(stoneId)}`);
+  if (playerType === 'modern') {
+    return res.redirect(`/viewer.html?d=${encodeURIComponent(stoneId)}`);
   }
-  return res.redirect(`/viewer.html?d=${encodeURIComponent(stoneId)}`);
+  return res.redirect(`/vision360.html?d=${encodeURIComponent(stoneId)}`);
 });
 
-// Helper to inspect frame counts inside V360 json files
+// Helper to extract frame info and thumbnail for any V360 folder
 function getStoneFrameInfo(stoneDir, stoneId) {
   const files = fs.readdirSync(stoneDir);
   const images = files
@@ -89,16 +113,18 @@ function getStoneFrameInfo(stoneDir, stoneId) {
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 
   let frameCount = images.length;
+  let hasVideo = files.includes('video.mp4');
+  let hasHtml = files.some(f => f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html');
 
   // Check 1.json or sm.json for base64 frame arrays
-  for (let jsonFile of ['1.json', 'sm.json', '2.json']) {
+  for (let jsonFile of ['1.json', 'sm.json', '2.json', '8.json']) {
     const jPath = path.join(stoneDir, jsonFile);
     if (fs.existsSync(jPath)) {
       try {
         const raw = fs.readFileSync(jPath, 'utf8');
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          frameCount = parsed.length;
+          frameCount = Math.max(frameCount, parsed.length);
           break;
         }
       } catch (e) {}
@@ -114,10 +140,10 @@ function getStoneFrameInfo(stoneDir, stoneId) {
     thumbnail = `/css/images/info.png`;
   }
 
-  return { frameCount, thumbnail, files, images };
+  return { frameCount, thumbnail, files, images, hasVideo, hasHtml };
 }
 
-// API: List items
+// API: List items for Dashboard
 app.get('/api/items', (req, res) => {
   try {
     const items = fs.readdirSync(MEDIA_DIR).filter(item => {
@@ -129,12 +155,15 @@ app.get('/api/items', (req, res) => {
     const itemList = items.map(stoneId => {
       const stoneDir = path.join(MEDIA_DIR, stoneId);
       const stats = fs.statSync(stoneDir);
-      const { frameCount, thumbnail } = getStoneFrameInfo(stoneDir, stoneId);
+      const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(stoneDir, stoneId);
 
       return {
         stoneId,
         frameCount,
         thumbnail,
+        hasVideo,
+        hasHtml,
+        videoUrl: hasVideo ? `${host}/imaged/${stoneId}/video.mp4` : null,
         createdAt: stats.mtime.toISOString(),
         v360Url: `${host}/vision360.html?d=${stoneId}`,
         modernUrl: `${host}/viewer.html?d=${stoneId}`,
@@ -157,7 +186,7 @@ app.get('/api/items/:stoneId', (req, res) => {
     return res.status(404).json({ error: 'Stone not found' });
   }
 
-  const { frameCount, thumbnail, files, images } = getStoneFrameInfo(stoneDir, stoneId);
+  const { frameCount, thumbnail, files, images, hasVideo, hasHtml } = getStoneFrameInfo(stoneDir, stoneId);
   const jsonFiles = files.filter(f => f.endsWith('.json'));
 
   res.json({
@@ -166,6 +195,8 @@ app.get('/api/items/:stoneId', (req, res) => {
     totalFrames: frameCount,
     images,
     jsonFiles,
+    hasVideo,
+    hasHtml,
     v360Url: `/vision360.html?d=${stoneId}`,
     modernUrl: `/viewer.html?d=${stoneId}`
   });

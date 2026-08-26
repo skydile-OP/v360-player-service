@@ -238,6 +238,12 @@
     .btn-action-main:hover {
       background: #0369a1;
     }
+    .btn-action-video {
+      background: #8b5cf6;
+    }
+    .btn-action-video:hover {
+      background: #7c3aed;
+    }
     .btn-group-sm {
       display: flex;
       gap: 8px;
@@ -289,6 +295,9 @@
       overflow: hidden;
       position: relative;
       border: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .modal-close {
       position: absolute;
@@ -304,7 +313,7 @@
       z-index: 10;
       font-size: 18px;
     }
-    iframe {
+    iframe, video {
       width: 100%;
       height: 100%;
       border: none;
@@ -336,7 +345,6 @@
   </nav>
 
   <div class="container">
-    <!-- Web Drag & Drop Upload supporting Folders, Images, & ZIP -->
     <div class="upload-card" id="dropZone">
       <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
       <div class="upload-title" id="uploadStatus">Upload 360° Scan Folder or Files</div>
@@ -351,12 +359,10 @@
         </button>
       </div>
 
-      <!-- Native browser input for folder selection -->
       <input type="file" id="folderInput" webkitdirectory directory multiple>
-      <input type="file" id="fileInput" multiple accept=".zip,.jpg,.jpeg,.png,.webp,.json">
+      <input type="file" id="fileInput" multiple accept=".zip,.jpg,.jpeg,.png,.webp,.json,.mp4,.html">
     </div>
 
-    <!-- Section Title & Search -->
     <div class="section-header">
       <div class="section-title">
         Scanned Items (<span id="itemCount">0</span>)
@@ -367,7 +373,6 @@
       </div>
     </div>
 
-    <!-- Inventory Grid -->
     <div class="grid" id="itemsGrid">
       <div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 40px;">
         Loading 360° items inventory...
@@ -375,9 +380,8 @@
     </div>
   </div>
 
-  <!-- Interactive Viewer Modal -->
   <div class="modal" id="viewerModal">
-    <div class="modal-content">
+    <div class="modal-content" id="modalContainer">
       <button class="modal-close" onclick="closeModal()">✕</button>
       <iframe id="modalIframe" src=""></iframe>
     </div>
@@ -416,18 +420,23 @@
       grid.innerHTML = items.map(item => `
         <div class="card">
           <div class="card-thumb">
-            <span class="card-badge">${item.frameCount} Frames</span>
+            <span class="card-badge">${item.frameCount > 0 ? item.frameCount + ' Frames' : 'Scan Data'}</span>
             <img src="${item.thumbnail || '/css/images/info.png'}" alt="${item.stoneId}" onerror="this.src='/css/images/info.png'">
           </div>
           <div class="card-body">
             <div class="stone-id">${item.stoneId}</div>
             <div class="card-meta">Scanned: ${new Date(item.createdAt).toLocaleDateString()}</div>
             <div class="card-actions">
-              <button class="btn-action-main" onclick="openModal('${item.v360Url}')">
+              <button class="btn-action-main" onclick="openModal('${item.v360Url}', false)">
                 <i class="fa-solid fa-arrows-spin"></i> View Interactive 360°
               </button>
+              ${item.hasVideo ? `
+                <button class="btn-action-main btn-action-video" onclick="openModal('${item.videoUrl}', true)">
+                  <i class="fa-solid fa-video"></i> Watch Video MP4
+                </button>
+              ` : ''}
               <div class="btn-group-sm">
-                <button class="btn-sm" onclick="copyToClipboard('${item.modernUrl}')">
+                <button class="btn-sm" onclick="copyToClipboard('${item.v360Url}')">
                   <i class="fa-solid fa-link"></i> Copy Link
                 </button>
                 <button class="btn-sm" onclick="copyToClipboard('${item.embedCode}')">
@@ -435,7 +444,7 @@
                 </button>
               </div>
               <div class="btn-group-sm">
-                <button class="btn-sm" onclick="shareWhatsApp('${item.stoneId}', '${item.modernUrl}')">
+                <button class="btn-sm" onclick="shareWhatsApp('${item.stoneId}', '${item.v360Url}')">
                   <i class="fa-brands fa-whatsapp"></i> WhatsApp
                 </button>
                 <button class="btn-sm btn-delete" onclick="deleteItem('${item.stoneId}')">
@@ -448,22 +457,31 @@
       `).join('');
     }
 
-    // Search filter
     document.getElementById('searchInput').addEventListener('input', (e) => {
       const q = e.target.value.toLowerCase().trim();
       const filtered = allItems.filter(item => item.stoneId.toLowerCase().includes(q));
       renderItems(filtered);
     });
 
-    // Modal logic
-    function openModal(url) {
-      document.getElementById('modalIframe').src = url;
+    function openModal(url, isVideo = false) {
+      const container = document.getElementById('modalContainer');
+      if (isVideo) {
+        container.innerHTML = `
+          <button class="modal-close" onclick="closeModal()">✕</button>
+          <video src="${url}" controls autoplay loop style="width:100%;height:100%;object-fit:contain;"></video>
+        `;
+      } else {
+        container.innerHTML = `
+          <button class="modal-close" onclick="closeModal()">✕</button>
+          <iframe src="${url}"></iframe>
+        `;
+      }
       document.getElementById('viewerModal').style.display = 'flex';
     }
 
     function closeModal() {
       document.getElementById('viewerModal').style.display = 'none';
-      document.getElementById('modalIframe').src = '';
+      document.getElementById('modalContainer').innerHTML = '<button class="modal-close" onclick="closeModal()">✕</button><iframe id="modalIframe" src=""></iframe>';
     }
 
     function copyToClipboard(text) {
@@ -497,7 +515,6 @@
       }
     }
 
-    // Folder & Files Upload Handling
     const dropZone = document.getElementById('dropZone');
     const folderInput = document.getElementById('folderInput');
     const fileInput = document.getElementById('fileInput');
@@ -560,7 +577,6 @@
     async function uploadFilesOrZip(fileList) {
       const uploadStatus = document.getElementById('uploadStatus');
 
-      // 1. Check if single ZIP file
       if (fileList.length === 1 && fileList[0].name.toLowerCase().endsWith('.zip')) {
         uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Unzipping '${fileList[0].name}'...`;
         const formData = new FormData();
@@ -582,8 +598,6 @@
         return;
       }
 
-      // 2. Raw folder or multiple image files
-      // Infer stoneId from relativePath or folder name
       let stoneId = 'scanned_item';
       if (fileList[0].webkitRelativePath) {
         const parts = fileList[0].webkitRelativePath.split('/');
@@ -623,7 +637,6 @@
       }
     }
 
-    // Initial load
     fetchItems();
   </script>
 </body>
