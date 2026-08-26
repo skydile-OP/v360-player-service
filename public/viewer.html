@@ -160,11 +160,11 @@
     let isDragging = false;
     let startX = 0;
     let autoPlayInterval = null;
+    let resumeTimeout = null;
     let scale = 1;
     let panX = 0, panY = 0;
 
     async function loadStone() {
-      // 1. Try V360 JSON array format (1.json, sm.json, 2.json)
       const jsonFiles = ['1.json', 'sm.json', '2.json', '0.json'];
       for (let jf of jsonFiles) {
         try {
@@ -184,11 +184,10 @@
             }
           }
         } catch (e) {
-          console.log(`Check ${jf} failed, trying next format...`);
+          console.log(`Check ${jf} failed...`);
         }
       }
 
-      // 2. Try API lookup for image file list
       try {
         const res = await fetch(`/api/items/${stoneId}`);
         if (res.ok) {
@@ -202,7 +201,6 @@
         console.warn('API lookup failed, falling back to standard sequence probing');
       }
 
-      // 3. Fallback standard file sequence
       await loadImagesStandard();
     }
 
@@ -277,6 +275,39 @@
       setTimeout(() => loader.style.display = 'none', 400);
       resizeCanvas();
       render();
+      
+      // Auto-start slow elegant rotation on load
+      startAutoPlay();
+    }
+
+    function startAutoPlay() {
+      if (autoPlayInterval) return;
+      btnPlay.classList.add('active');
+      btnPlay.textContent = '⏸';
+      autoPlayInterval = setInterval(() => {
+        currentFrame = (currentFrame + 1) % images.length;
+        render();
+      }, 140); // 140ms per frame = slow, realistic rotation speed
+    }
+
+    function stopAutoPlay() {
+      if (autoPlayInterval) {
+        clearInterval(autoPlayInterval);
+        autoPlayInterval = null;
+        btnPlay.classList.remove('active');
+        btnPlay.textContent = '▶';
+      }
+      if (resumeTimeout) {
+        clearTimeout(resumeTimeout);
+        resumeTimeout = null;
+      }
+    }
+
+    function scheduleAutoResume() {
+      if (resumeTimeout) clearTimeout(resumeTimeout);
+      resumeTimeout = setTimeout(() => {
+        startAutoPlay();
+      }, 2000);
     }
 
     function resizeCanvas() {
@@ -310,7 +341,7 @@
       ctx.drawImage(img, x, y, drawW, drawH);
     }
 
-    // Drag Interaction
+    // Drag Interactions
     container.addEventListener('mousedown', (e) => {
       isDragging = true;
       startX = e.clientX;
@@ -333,9 +364,14 @@
       }
     });
 
-    window.addEventListener('mouseup', () => isDragging = false);
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        scheduleAutoResume();
+      }
+    });
 
-    // Touch Interaction
+    // Touch Interactions
     container.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
         isDragging = true;
@@ -359,17 +395,26 @@
       }
     });
 
-    container.addEventListener('touchend', () => isDragging = false);
+    container.addEventListener('touchend', () => {
+      if (isDragging) {
+        isDragging = false;
+        scheduleAutoResume();
+      }
+    });
 
     // Controls
     document.getElementById('btnPrev').addEventListener('click', () => {
+      stopAutoPlay();
       currentFrame = (currentFrame - 1 + images.length) % images.length;
       render();
+      scheduleAutoResume();
     });
 
     document.getElementById('btnNext').addEventListener('click', () => {
+      stopAutoPlay();
       currentFrame = (currentFrame + 1) % images.length;
       render();
+      scheduleAutoResume();
     });
 
     const btnPlay = document.getElementById('btnPlay');
@@ -380,24 +425,6 @@
         startAutoPlay();
       }
     });
-
-    function startAutoPlay() {
-      btnPlay.classList.add('active');
-      btnPlay.textContent = '⏸';
-      autoPlayInterval = setInterval(() => {
-        currentFrame = (currentFrame + 1) % images.length;
-        render();
-      }, 70);
-    }
-
-    function stopAutoPlay() {
-      if (autoPlayInterval) {
-        clearInterval(autoPlayInterval);
-        autoPlayInterval = null;
-        btnPlay.classList.remove('active');
-        btnPlay.textContent = '▶';
-      }
-    }
 
     document.getElementById('btnZoomIn').addEventListener('click', () => {
       scale = Math.min(scale * 1.25, 4);
