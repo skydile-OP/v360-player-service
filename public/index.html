@@ -415,13 +415,14 @@
       width: 100%;
       height: 100%;
       border: none;
+      background: #ffffff;
     }
     video {
       width: 100%;
       height: 100%;
       object-fit: contain;
       background: #000000;
-      filter: none;
+      filter: contrast(1.08) brightness(0.96) saturate(1.04);
     }
 
     .toast {
@@ -679,7 +680,7 @@
       if (isVideo) {
         container.innerHTML = `
           <button class="modal-close" onclick="closeModal()">✕</button>
-          <video src="${url}" controls autoplay loop style="width:100%;height:100%;object-fit:contain;background:#000000;filter:none;"></video>
+          <video src="${url}" controls autoplay loop style="width:100%;height:100%;object-fit:contain;background:#000000;filter:contrast(1.08) brightness(0.96) saturate(1.04);"></video>
         `;
       } else {
         container.innerHTML = `
@@ -842,10 +843,7 @@
           hasSubfolders = true;
           const sku = parts[0];
           if (!skuGroups[sku]) skuGroups[sku] = [];
-          
-          if (!file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase() === 'index.html') {
-            skuGroups[sku].push(file);
-          }
+          skuGroups[sku].push(file);
         }
       }
 
