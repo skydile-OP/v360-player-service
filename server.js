@@ -14,6 +14,14 @@ app.enable('trust proxy');
 app.use(cors());
 app.use(express.json());
 
+// Prevent browser caching of 404s or stale image states
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 const MEDIA_DIR = process.env.MEDIA_DIR || path.join(__dirname, 'data', 'media');
 if (!fs.existsSync(MEDIA_DIR)) {
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
@@ -132,7 +140,8 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
   const dirsToSearch = [
     path.join(__dirname, 'public'),
     path.join(__dirname, 'public', 'css', 'images'),
-    path.join(__dirname, 'public', 'images')
+    path.join(__dirname, 'public', 'images'),
+    path.join(__dirname, 'public', 'image')
   ];
 
   const searchName = filename.toLowerCase().replace(/%20/g, ' ').replace(/\s+view/g, '').trim();
@@ -169,7 +178,8 @@ app.use((req, res, next) => {
     const dirsToSearch = [
       path.join(__dirname, 'public'),
       path.join(__dirname, 'public', 'css', 'images'),
-      path.join(__dirname, 'public', 'images')
+      path.join(__dirname, 'public', 'images'),
+      path.join(__dirname, 'public', 'image')
     ];
 
     for (let d of dirsToSearch) {

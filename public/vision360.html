@@ -25,6 +25,17 @@
         #FixedWaterMark, #watermark {
             bottom: 15px;
         }
+        .divbtnpos .btnpos img {
+            max-width: 40px !important;
+            height: auto !important;
+            display: block !important;
+            margin: 0 auto !important;
+        }
+        .button img, .SideView img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain !important;
+        }
     </style>
     <script>
       $(document).ready(function(){
@@ -39,7 +50,23 @@
                 isHashSURL: 0,
                 zoomslide: 1,
                 autoPlay: 1,
-                speed: 180
+                speed: 180,
+                iconPath: '/image/',
+                iconPlay: '/image/play.png?v=2',
+                iconPause: '/image/pause.png?v=2',
+                iconNext: '/image/next.png?v=2',
+                iconPrev: '/image/prev.png?v=2',
+                iconReverse: '/image/reverse.png?v=2',
+                iconInfo: '/image/info.png?v=2',
+                iconGrey: '/image/grey.png?v=2',
+                iconZoom: '/image/zoom.png?v=2',
+                icon360: '/image/360.png?v=2',
+                iconFV: '/image/faceup.png?v=2',
+                iconFace: '/image/front.png?v=2',
+                iconRV: '/image/right.png?v=2',
+                iconBV: '/image/back.png?v=2',
+                iconLV: '/image/left.png?v=2',
+                iconAutoPlay: '/image/autoplay.png?v=2'
             });
       });
     </script>
