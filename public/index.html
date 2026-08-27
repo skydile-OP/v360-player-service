@@ -301,6 +301,12 @@
     .btn-action-video:hover {
       background: #7c3aed;
     }
+    .btn-action-copy {
+      background: #059669;
+    }
+    .btn-action-copy:hover {
+      background: #047857;
+    }
     .btn-group-sm {
       display: flex;
       gap: 8px;
@@ -431,12 +437,15 @@
       right: 24px;
       background: #10b981;
       color: #fff;
-      padding: 12px 24px;
-      border-radius: 8px;
+      padding: 14px 28px;
+      border-radius: 10px;
       font-weight: 600;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      font-size: 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
       display: none;
       z-index: 2000;
+      max-width: 420px;
+      line-height: 1.4;
     }
   </style>
 </head>
@@ -609,20 +618,18 @@
               <button class="btn-action-main" onclick="openModal('${item.v360Url}', false)">
                 <i class="fa-solid fa-arrows-spin"></i> View Interactive 360°
               </button>
+              <button class="btn-action-main btn-action-copy" onclick="copyDirectLink('${item.sku}')">
+                <i class="fa-solid fa-copy"></i> Copy Web Link (Paste in Browser)
+              </button>
               ${item.hasVideo ? `
                 <button class="btn-action-main btn-action-video" onclick="openModal('${item.videoUrl}', true)">
                   <i class="fa-solid fa-video"></i> Watch Video MP4
                 </button>
               ` : ''}
               <div class="btn-group-sm">
-                <button class="btn-sm" onclick="copyDirectLink('${item.sku}')" title="Copy web address to open directly in browser">
-                  <i class="fa-solid fa-link"></i> Copy Direct Link
+                <button class="btn-sm" onclick="copyIframeCode('${item.sku}')" title="Copy HTML code to embed inside website HTML">
+                  <i class="fa-solid fa-code"></i> Website HTML Embed
                 </button>
-                <button class="btn-sm" onclick="copyIframeCode('${item.sku}')" title="Copy HTML code to embed inside website">
-                  <i class="fa-solid fa-code"></i> Embed Code
-                </button>
-              </div>
-              <div class="btn-group-sm">
                 <button class="btn-sm" onclick="shareWhatsApp('${item.sku}')">
                   <i class="fa-brands fa-whatsapp"></i> WhatsApp
                 </button>
@@ -648,16 +655,16 @@
               <button class="btn-sm" style="background:#0284c7; color:#fff;" onclick="openModal('${item.v360Url}', false)">
                 <i class="fa-solid fa-arrows-spin"></i> View 360°
               </button>
+              <button class="btn-sm" style="background:#059669; color:#fff;" onclick="copyDirectLink('${item.sku}')">
+                <i class="fa-solid fa-copy"></i> Copy Web Link
+              </button>
               ${item.hasVideo ? `
                 <button class="btn-sm" style="background:#8b5cf6; color:#fff;" onclick="openModal('${item.videoUrl}', true)">
                   <i class="fa-solid fa-video"></i> Video
                 </button>
               ` : ''}
-              <button class="btn-sm" onclick="copyDirectLink('${item.sku}')">
-                <i class="fa-solid fa-link"></i> Copy Direct Link
-              </button>
               <button class="btn-sm" onclick="copyIframeCode('${item.sku}')">
-                <i class="fa-solid fa-code"></i> Embed Code
+                <i class="fa-solid fa-code"></i> HTML Embed
               </button>
               <button class="btn-sm btn-delete" onclick="deleteItem('${item.sku}')">
                 <i class="fa-solid fa-trash"></i>
@@ -700,7 +707,7 @@
       const baseUrl = window.location.origin;
       const link = `${baseUrl}/vision360.html?d=${encodeURIComponent(sku)}`;
       navigator.clipboard.writeText(link).then(() => {
-        showToast('🔗 Direct 360° URL copied! Paste in browser address bar to view.');
+        showToast('✅ Web Link Copied! Paste directly into your browser URL bar to view.');
       });
     }
 
@@ -708,7 +715,7 @@
       const baseUrl = window.location.origin;
       const code = `<iframe src="${baseUrl}/vision360.html?d=${encodeURIComponent(sku)}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`;
       navigator.clipboard.writeText(code).then(() => {
-        showToast('💻 Website HTML Embed Code copied! Paste into website code.');
+        showToast('💻 Website HTML Embed Code Copied!\n(Note: To open in browser, use "Copy Web Link")');
       });
     }
 
@@ -723,7 +730,7 @@
       const toast = document.getElementById('toast');
       toast.textContent = msg;
       toast.style.display = 'block';
-      setTimeout(() => toast.style.display = 'none', 3000);
+      setTimeout(() => toast.style.display = 'none', 3500);
     }
 
     async function deleteItem(sku) {
