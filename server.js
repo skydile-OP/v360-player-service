@@ -106,6 +106,11 @@ const WEISS_BRANDING_INJECTION = `
     opacity: 0 !important;
     visibility: hidden !important;
   }
+  .V360-canvas, canvas, video, img {
+    filter: none !important;
+    -webkit-filter: none !important;
+    mix-blend-mode: normal !important;
+  }
 </style>
 <script>
   (function() {
@@ -132,7 +137,7 @@ const WEISS_BRANDING_INJECTION = `
 </script>
 </body>`;
 
-// Serve exported standalone V360 HTML page if present (e.g. SE313.html)
+// Serve exported standalone V360 HTML page if present (e.g. SE313.html, PR048.html)
 app.get('/vision360.html', (req, res) => {
   const stoneId = req.query.d;
   if (stoneId) {
