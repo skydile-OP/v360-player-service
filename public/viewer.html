@@ -16,8 +16,8 @@
     html, body {
       width: 100%;
       height: 100%;
-      background-color: #0b0f19;
-      color: #fff;
+      background-color: #ffffff;
+      color: #1e293b;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       overflow: hidden;
     }
@@ -28,7 +28,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: radial-gradient(circle at center, #1a2336 0%, #080c14 100%);
+      background: #ffffff;
       cursor: grab;
     }
     #container:active {
@@ -52,23 +52,24 @@
       z-index: 10;
     }
     .stone-tag {
-      background: rgba(15, 23, 42, 0.75);
+      background: rgba(255, 255, 255, 0.9);
       backdrop-filter: blur(8px);
       padding: 6px 16px;
       border-radius: 20px;
       font-size: 14px;
       font-weight: 600;
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.2);
+      color: #0f172a;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
     .quality-badge {
-      background: rgba(16, 185, 129, 0.2);
-      color: #10b981;
+      background: rgba(16, 185, 129, 0.1);
+      color: #059669;
       padding: 4px 12px;
       border-radius: 12px;
       font-size: 12px;
       font-weight: 600;
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      border: 1px solid rgba(16, 185, 129, 0.2);
     }
 
     /* Bottom Control Bar */
@@ -80,13 +81,14 @@
       display: flex;
       align-items: center;
       gap: 16px;
-      background: rgba(15, 23, 42, 0.85);
+      background: rgba(15, 23, 42, 0.88);
       backdrop-filter: blur(12px);
       padding: 8px 20px;
       border-radius: 40px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       z-index: 10;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+      color: #fff;
     }
     .btn-group {
       display: flex;
@@ -121,13 +123,13 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      border-left: 1px solid rgba(255, 255, 255, 0.1);
-      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      border-left: 1px solid rgba(255, 255, 255, 0.15);
+      border-right: 1px solid rgba(255, 255, 255, 0.15);
       padding: 0 12px;
     }
     .speed-label {
       font-size: 12px;
-      color: #94a3b8;
+      color: #cbd5e1;
       font-weight: 500;
       min-width: 45px;
     }
@@ -144,7 +146,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: #0b0f19;
+      background: #ffffff;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -155,8 +157,8 @@
     .spinner {
       width: 52px;
       height: 52px;
-      border: 4px solid rgba(56, 189, 248, 0.15);
-      border-top-color: #38bdf8;
+      border: 4px solid rgba(2, 132, 199, 0.15);
+      border-top-color: #0284c7;
       border-radius: 50%;
       animation: spin 0.9s infinite linear;
     }
@@ -167,7 +169,7 @@
     .progress-text {
       margin-top: 18px;
       font-size: 14px;
-      color: #94a3b8;
+      color: #64748b;
       font-weight: 500;
     }
   </style>
@@ -182,7 +184,7 @@
 
     <div class="loader-overlay" id="loader">
       <div class="spinner"></div>
-      <div class="progress-text" id="progressText">Loading HD 360° Frames... 0%</div>
+      <div class="progress-text" id="progressText">Loading High-Res 360° View... 0%</div>
     </div>
 
     <canvas id="canvas"></canvas>
@@ -196,8 +198,8 @@
 
       <div class="speed-control">
         <i class="fa-solid fa-gauge-high" style="color:#94a3b8; font-size:13px;"></i>
-        <input type="range" class="speed-slider" id="speedSlider" min="40" max="300" step="10" value="140" title="Adjust Spin Speed">
-        <span class="speed-label" id="speedValue">1.0x Speed</span>
+        <input type="range" class="speed-slider" id="speedSlider" min="50" max="450" step="10" value="260" title="Adjust Spin Speed">
+        <span class="speed-label" id="speedValue">Slow Spin</span>
       </div>
 
       <div class="btn-group">
@@ -229,10 +231,11 @@
     let resumeTimeout = null;
     let scale = 1;
     let panX = 0, panY = 0;
-    let currentIntervalMs = 140;
+
+    // Slow, realistic turn-table default speed (260ms per frame)
+    let currentIntervalMs = 260;
 
     async function loadStone() {
-      // Prioritize High-Resolution JSON frame arrays (8.json -> 7.json -> 6.json -> 5.json -> 4.json -> 1.json)
       const jsonPriorityList = ['8.json', '7.json', '6.json', '5.json', '4.json', '3.json', '2.json', '1.json', 'sm.json', '0.json'];
       
       for (let jf of jsonPriorityList) {
@@ -248,7 +251,7 @@
             }
 
             if (base64List.length > 0) {
-              document.getElementById('qualityBadge').textContent = `HD 360° (${base64List.length} Frames)`;
+              document.getElementById('qualityBadge').textContent = `Full HD (${base64List.length} Frames)`;
               await loadBase64Images(base64List);
               return;
             }
@@ -258,7 +261,6 @@
         }
       }
 
-      // Check API for custom JPEGs
       try {
         const res = await fetch(`/api/items/${stoneId}`);
         if (res.ok) {
@@ -377,7 +379,7 @@
       if (resumeTimeout) clearTimeout(resumeTimeout);
       resumeTimeout = setTimeout(() => {
         startAutoPlay();
-      }, 2500);
+      }, 3000);
     }
 
     function resizeCanvas() {
@@ -411,19 +413,23 @@
       ctx.drawImage(img, x, y, drawW, drawH);
     }
 
-    // Speed Slider Adjustment
+    // Speed Control Slider
     speedSlider.addEventListener('input', (e) => {
-      // Inverse scale: lower ms = faster rotation
-      currentIntervalMs = 340 - parseInt(e.target.value);
-      const speedMultiplier = (140 / currentIntervalMs).toFixed(1);
-      speedValue.textContent = `${speedMultiplier}x Speed`;
+      currentIntervalMs = parseInt(e.target.value);
+      if (currentIntervalMs >= 260) {
+        speedValue.textContent = 'Slow';
+      } else if (currentIntervalMs >= 150) {
+        speedValue.textContent = 'Normal';
+      } else {
+        speedValue.textContent = 'Fast';
+      }
 
       if (autoPlayInterval) {
         startAutoPlay();
       }
     });
 
-    // Touch & Mouse Drag Interaction
+    // Drag Interaction
     container.addEventListener('mousedown', (e) => {
       isDragging = true;
       startX = e.clientX;
@@ -433,7 +439,7 @@
     window.addEventListener('mousemove', (e) => {
       if (!isDragging || images.length === 0) return;
       const deltaX = e.clientX - startX;
-      const sensitivity = 6;
+      const sensitivity = 8;
       
       if (Math.abs(deltaX) > sensitivity) {
         if (deltaX > 0) {
@@ -464,7 +470,7 @@
     container.addEventListener('touchmove', (e) => {
       if (!isDragging || e.touches.length !== 1) return;
       const deltaX = e.touches[0].clientX - startX;
-      const sensitivity = 6;
+      const sensitivity = 8;
       if (Math.abs(deltaX) > sensitivity) {
         if (deltaX > 0) {
           currentFrame = (currentFrame - 1 + images.length) % images.length;
@@ -483,7 +489,6 @@
       }
     });
 
-    // Control Buttons
     document.getElementById('btnPrev').addEventListener('click', () => {
       stopAutoPlay();
       currentFrame = (currentFrame - 1 + images.length) % images.length;

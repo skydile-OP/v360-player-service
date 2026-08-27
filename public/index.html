@@ -228,7 +228,7 @@
     .card-thumb {
       width: 100%;
       height: 220px;
-      background: #090d16;
+      background: #ffffff;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -367,7 +367,7 @@
       height: 48px;
       border-radius: 6px;
       object-fit: cover;
-      background: #090d16;
+      background: #ffffff;
     }
     .tbl-sku {
       font-weight: 700;
@@ -378,7 +378,7 @@
       display: none;
       position: fixed;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0, 0, 0, 0.85);
+      background: rgba(0, 0, 0, 0.88);
       backdrop-filter: blur(8px);
       z-index: 1000;
       align-items: center;
@@ -388,7 +388,7 @@
       width: 90%;
       max-width: 900px;
       height: 80vh;
-      background: #0b0f19;
+      background: #000000;
       border-radius: 16px;
       overflow: hidden;
       position: relative;
@@ -411,10 +411,17 @@
       z-index: 10;
       font-size: 18px;
     }
-    iframe, video {
+    iframe {
       width: 100%;
       height: 100%;
       border: none;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000000;
+      filter: none;
     }
 
     .toast {
@@ -672,7 +679,7 @@
       if (isVideo) {
         container.innerHTML = `
           <button class="modal-close" onclick="closeModal()">✕</button>
-          <video src="${url}" controls autoplay loop style="width:100%;height:100%;object-fit:contain;"></video>
+          <video src="${url}" controls autoplay loop style="width:100%;height:100%;object-fit:contain;background:#000000;filter:none;"></video>
         `;
       } else {
         container.innerHTML = `
@@ -825,7 +832,6 @@
         return;
       }
 
-      // Group files by SKU folder name
       const skuGroups = {};
       let hasSubfolders = false;
 
@@ -837,7 +843,6 @@
           const sku = parts[0];
           if (!skuGroups[sku]) skuGroups[sku] = [];
           
-          // Filter out giant redundant standalone HTML files (24MB) for super fast browser uploads
           if (!file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase() === 'index.html') {
             skuGroups[sku].push(file);
           }
