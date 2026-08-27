@@ -22,7 +22,7 @@
     .navbar {
       background-color: #1e293b;
       border-bottom: 1px solid #334155;
-      padding: 16px 32px;
+      padding: 14px 28px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -30,13 +30,13 @@
     .logo {
       display: flex;
       align-items: center;
-      gap: 12px;
-      font-size: 20px;
+      gap: 10px;
+      font-size: 19px;
       font-weight: 700;
       color: #38bdf8;
     }
     .logo i {
-      font-size: 24px;
+      font-size: 22px;
     }
     .badge {
       background: rgba(56, 189, 248, 0.15);
@@ -48,21 +48,21 @@
       font-weight: 600;
     }
     .container {
-      max-width: 1280px;
+      max-width: 100%;
       width: 100%;
       margin: 0 auto;
-      padding: 32px 24px;
+      padding: 20px 24px;
       flex: 1;
     }
     .upload-card {
       background: #1e293b;
       border: 2px dashed #475569;
-      border-radius: 16px;
-      padding: 36px 24px;
+      border-radius: 14px;
+      padding: 24px 20px;
       text-align: center;
       cursor: pointer;
       transition: all 0.25s ease;
-      margin-bottom: 32px;
+      margin-bottom: 20px;
       position: relative;
     }
     .upload-card:hover, .upload-card.dragover {
@@ -70,39 +70,39 @@
       background: rgba(56, 189, 248, 0.05);
     }
     .upload-icon {
-      font-size: 44px;
+      font-size: 32px;
       color: #38bdf8;
-      margin-bottom: 14px;
+      margin-bottom: 8px;
     }
     .upload-title {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 600;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     .upload-subtitle {
-      font-size: 14px;
+      font-size: 13px;
       color: #94a3b8;
-      margin-bottom: 18px;
+      margin-bottom: 14px;
     }
     .btn-group-upload {
       display: flex;
       justify-content: center;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
     }
     .btn-upload {
       background: #38bdf8;
       color: #0f172a;
       font-weight: 600;
-      padding: 10px 20px;
+      padding: 9px 16px;
       border-radius: 8px;
       border: none;
       cursor: pointer;
       transition: background 0.2s ease;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      font-size: 14px;
+      gap: 6px;
+      font-size: 13px;
     }
     .btn-upload:hover {
       background: #7dd3fc;
@@ -129,7 +129,7 @@
     .btn-abort-upload:hover {
       background: #dc2626;
     }
-    #folderInput, #fileInput {
+    #bulkFolderInput, #singleFolderInput, #fileInput {
       display: none;
     }
 
@@ -137,32 +137,32 @@
       background: #1e293b;
       border: 1px solid #334155;
       border-radius: 12px;
-      padding: 16px 24px;
-      margin-bottom: 24px;
+      padding: 12px 20px;
+      margin-bottom: 20px;
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
     }
     .search-box {
       position: relative;
       flex: 1;
-      min-width: 260px;
+      min-width: 240px;
     }
     .search-box input {
       width: 100%;
       background: #0f172a;
       border: 1px solid #334155;
-      padding: 10px 16px 10px 40px;
+      padding: 8px 14px 8px 36px;
       border-radius: 8px;
       color: #fff;
-      font-size: 14px;
+      font-size: 13px;
       outline: none;
     }
     .search-box i {
       position: absolute;
-      left: 14px;
+      left: 12px;
       top: 50%;
       transform: translateY(-50%);
       color: #64748b;
@@ -171,15 +171,15 @@
     .sort-group {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
     .select-sort {
       background: #0f172a;
       border: 1px solid #334155;
       color: #f8fafc;
-      padding: 10px 14px;
+      padding: 8px 12px;
       border-radius: 8px;
-      font-size: 14px;
+      font-size: 13px;
       outline: none;
       cursor: pointer;
     }
@@ -194,10 +194,10 @@
       background: transparent;
       border: none;
       color: #64748b;
-      padding: 8px 14px;
+      padding: 6px 12px;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 13px;
       transition: all 0.2s ease;
     }
     .btn-toggle.active {
@@ -206,28 +206,37 @@
       font-weight: 600;
     }
 
+    /* 8 Columns High-Density Layout on Full Screen / Large Screens */
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 24px;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
     }
+
+    @media (min-width: 1366px) {
+      .grid {
+        grid-template-columns: repeat(8, 1fr) !important;
+        gap: 14px !important;
+      }
+    }
+
     .card {
       background: #1e293b;
       border: 1px solid #334155;
-      border-radius: 12px;
+      border-radius: 10px;
       overflow: hidden;
       display: flex;
       flex-direction: column;
       transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
     .card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
       border-color: #475569;
     }
     .card-thumb {
       width: 100%;
-      height: 220px;
+      height: 150px;
       background: #ffffff;
       display: flex;
       align-items: center;
@@ -242,55 +251,58 @@
     }
     .card-badge {
       position: absolute;
-      top: 12px;
-      right: 12px;
-      background: rgba(15, 23, 42, 0.8);
-      backdrop-filter: blur(6px);
+      top: 6px;
+      right: 6px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(4px);
       color: #38bdf8;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 12px;
+      padding: 2px 7px;
+      border-radius: 12px;
+      font-size: 10px;
       font-weight: 600;
       border: 1px solid rgba(56, 189, 248, 0.2);
     }
     .card-body {
-      padding: 18px;
+      padding: 12px;
       flex: 1;
       display: flex;
       flex-direction: column;
     }
     .stone-id {
-      font-size: 18px;
+      font-size: 14px;
       font-weight: 700;
-      margin-bottom: 6px;
+      margin-bottom: 2px;
       color: #f8fafc;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .card-meta {
-      font-size: 13px;
+      font-size: 11px;
       color: #94a3b8;
-      margin-bottom: 16px;
+      margin-bottom: 10px;
     }
     .card-actions {
       margin-top: auto;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 5px;
     }
     .btn-action-main {
       width: 100%;
       background: #0284c7;
       color: #fff;
       font-weight: 600;
-      padding: 10px;
-      border-radius: 6px;
+      padding: 6px;
+      border-radius: 5px;
       border: none;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 5px;
       text-decoration: none;
-      font-size: 14px;
+      font-size: 11px;
     }
     .btn-action-main:hover {
       background: #0369a1;
@@ -309,21 +321,21 @@
     }
     .btn-group-sm {
       display: flex;
-      gap: 8px;
+      gap: 4px;
     }
     .btn-sm {
       flex: 1;
       background: #334155;
       color: #cbd5e1;
-      font-size: 12px;
-      padding: 8px;
-      border-radius: 6px;
+      font-size: 10px;
+      padding: 5px 2px;
+      border-radius: 5px;
       border: none;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 4px;
       transition: background 0.2s ease;
     }
     .btn-sm:hover {
@@ -353,24 +365,24 @@
     }
     th {
       background: #0f172a;
-      padding: 14px 20px;
-      font-size: 13px;
+      padding: 12px 16px;
+      font-size: 12px;
       font-weight: 600;
       color: #94a3b8;
       border-bottom: 1px solid #334155;
     }
     td {
-      padding: 16px 20px;
+      padding: 12px 16px;
       border-bottom: 1px solid #334155;
-      font-size: 14px;
+      font-size: 13px;
       vertical-align: middle;
     }
     tr:hover {
       background: rgba(255, 255, 255, 0.02);
     }
     .tbl-thumb {
-      width: 48px;
-      height: 48px;
+      width: 40px;
+      height: 40px;
       border-radius: 6px;
       object-fit: cover;
       background: #ffffff;
@@ -463,22 +475,26 @@
   <div class="container">
     <div class="upload-card" id="dropZone">
       <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-      <div class="upload-title" id="uploadStatus">Bulk Local Folder Sync & Upload</div>
-      <div class="upload-subtitle">Drag & drop your scan directory (e.g. <code style="color:#38bdf8;">E:\vision360_data</code>)</div>
+      <div class="upload-title" id="uploadStatus">Bulk Local Scan Sync & Upload</div>
+      <div class="upload-subtitle">Drag & drop a single SKU folder (e.g. <code>PR048</code>) or master scan folder (e.g. <code>E:\vision360_data</code>)</div>
       
       <div class="btn-group-upload">
-        <button class="btn-upload btn-sync-refresh" type="button" onclick="document.getElementById('folderInput').click()">
-          <i class="fa-solid fa-rotate"></i> Sync New Local Scans (E:\vision360_data)
+        <button class="btn-upload btn-upload-sec" type="button" onclick="document.getElementById('singleFolderInput').click()">
+          <i class="fa-solid fa-folder-plus"></i> Upload Single SKU Folder
+        </button>
+        <button class="btn-upload btn-sync-refresh" type="button" onclick="document.getElementById('bulkFolderInput').click()">
+          <i class="fa-solid fa-rotate"></i> Sync Bulk Scans (E:\vision360_data)
         </button>
         <button class="btn-upload btn-upload-sec" type="button" onclick="document.getElementById('fileInput').click()">
-          <i class="fa-solid fa-file-zipper"></i> Upload ZIP / Files
+          <i class="fa-solid fa-file-zipper"></i> Upload ZIP
         </button>
         <button class="btn-upload btn-abort-upload" id="btnAbortUpload" type="button" onclick="cancelUpload()">
-          <i class="fa-solid fa-circle-stop"></i> 🛑 Stop / Abort Upload
+          <i class="fa-solid fa-circle-stop"></i> 🛑 Stop Upload
         </button>
       </div>
 
-      <input type="file" id="folderInput" webkitdirectory directory multiple>
+      <input type="file" id="singleFolderInput" webkitdirectory directory multiple>
+      <input type="file" id="bulkFolderInput" webkitdirectory directory multiple>
       <input type="file" id="fileInput" multiple accept=".zip,.jpg,.jpeg,.png,.webp,.json,.mp4,.html">
     </div>
 
@@ -497,8 +513,8 @@
         </select>
 
         <div class="view-toggle">
-          <button class="btn-toggle active" id="btnGridView" onclick="setViewMode('grid')" title="Grid Gallery View">
-            <i class="fa-solid fa-grip-vertical"></i> Grid
+          <button class="btn-toggle active" id="btnGridView" onclick="setViewMode('grid')" title="Grid Gallery View (8 Columns)">
+            <i class="fa-solid fa-grip-vertical"></i> Grid (8x6)
           </button>
           <button class="btn-toggle" id="btnTableView" onclick="setViewMode('table')" title="Table List View">
             <i class="fa-solid fa-list"></i> Table
@@ -593,7 +609,7 @@
         grid.innerHTML = `
           <div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 60px;">
             <i class="fa-solid fa-gem" style="font-size: 40px; margin-bottom: 12px;"></i>
-            <p>No matching SKUs found in library. Click 'Sync New Local Scans' or drag & drop a scan folder above!</p>
+            <p>No matching SKUs found in library. Click 'Sync Bulk Scans' or select a single SKU folder above!</p>
           </div>
         `;
         tableBody.innerHTML = `
@@ -609,33 +625,33 @@
       grid.innerHTML = items.map(item => `
         <div class="card">
           <div class="card-thumb">
-            <span class="card-badge">${item.frameCount > 0 ? item.frameCount + ' Frames' : '360° Data'}</span>
+            <span class="card-badge">${item.frameCount > 0 ? item.frameCount + ' F' : '360°'}</span>
             <img src="${item.thumbnail || '/css/images/info.png'}" alt="${item.sku}" onerror="this.src='/css/images/info.png'">
           </div>
           <div class="card-body">
-            <div class="stone-id">SKU: ${item.sku}</div>
-            <div class="card-meta">Scanned: ${new Date(item.createdAt).toLocaleDateString()}</div>
+            <div class="stone-id" title="${item.sku}">${item.sku}</div>
+            <div class="card-meta">${new Date(item.createdAt).toLocaleDateString()}</div>
             <div class="card-actions">
               <button class="btn-action-main" onclick="openModal('${item.v360Url}', false)">
-                <i class="fa-solid fa-arrows-spin"></i> View Interactive 360°
+                <i class="fa-solid fa-arrows-spin"></i> View 360°
               </button>
               <button class="btn-action-main btn-action-copy" onclick="copyDirectLink('${item.sku}')">
-                <i class="fa-solid fa-copy"></i> Copy Web Link (Paste in Browser)
+                <i class="fa-solid fa-copy"></i> Web Link
               </button>
               ${item.hasVideo ? `
                 <button class="btn-action-main btn-action-video" onclick="openModal('${item.videoUrl}', true)">
-                  <i class="fa-solid fa-video"></i> Watch Video MP4
+                  <i class="fa-solid fa-video"></i> Video MP4
                 </button>
               ` : ''}
               <div class="btn-group-sm">
-                <button class="btn-sm" onclick="copyIframeCode('${item.sku}')" title="Copy HTML code to embed inside website HTML">
-                  <i class="fa-solid fa-code"></i> Website HTML Embed
+                <button class="btn-sm" onclick="copyIframeCode('${item.sku}')" title="Copy HTML Embed Code">
+                  <i class="fa-solid fa-code"></i> Embed
                 </button>
                 <button class="btn-sm" onclick="shareWhatsApp('${item.sku}')">
-                  <i class="fa-brands fa-whatsapp"></i> WhatsApp
+                  <i class="fa-brands fa-whatsapp"></i> WA
                 </button>
                 <button class="btn-sm btn-delete" onclick="deleteItem('${item.sku}')">
-                  <i class="fa-solid fa-trash"></i> Delete
+                  <i class="fa-solid fa-trash"></i>
                 </button>
               </div>
             </div>
@@ -652,12 +668,12 @@
           <td>${item.frameCount > 0 ? item.frameCount + ' frames' : 'Data'}</td>
           <td>${new Date(item.createdAt).toLocaleDateString()}</td>
           <td>
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:6px;">
               <button class="btn-sm" style="background:#0284c7; color:#fff;" onclick="openModal('${item.v360Url}', false)">
                 <i class="fa-solid fa-arrows-spin"></i> View 360°
               </button>
               <button class="btn-sm" style="background:#059669; color:#fff;" onclick="copyDirectLink('${item.sku}')">
-                <i class="fa-solid fa-copy"></i> Copy Web Link
+                <i class="fa-solid fa-copy"></i> Copy Link
               </button>
               ${item.hasVideo ? `
                 <button class="btn-sm" style="background:#8b5cf6; color:#fff;" onclick="openModal('${item.videoUrl}', true)">
@@ -753,13 +769,14 @@
         currentAbortController = null;
         document.getElementById('btnAbortUpload').style.display = 'none';
         const uploadStatus = document.getElementById('uploadStatus');
-        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-xmark" style="color:#ef4444;"></i> Upload stopped / aborted by user.`;
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-xmark" style="color:#ef4444;"></i> Upload stopped by user.`;
         showToast('Upload stopped!');
       }
     }
 
     const dropZone = document.getElementById('dropZone');
-    const folderInput = document.getElementById('folderInput');
+    const singleFolderInput = document.getElementById('singleFolderInput');
+    const bulkFolderInput = document.getElementById('bulkFolderInput');
     const fileInput = document.getElementById('fileInput');
 
     dropZone.addEventListener('dragover', (e) => {
@@ -787,7 +804,7 @@
         }
       }
       if (files.length > 0) {
-        processBulkFolderOrFiles(files);
+        processUploadFiles(files);
       }
     });
 
@@ -805,19 +822,74 @@
       }
     }
 
-    folderInput.addEventListener('change', () => {
-      if (folderInput.files.length > 0) {
-        processBulkFolderOrFiles(Array.from(folderInput.files));
+    // 1. Single Folder Upload: Automatically extracts SKU name from folder name!
+    singleFolderInput.addEventListener('change', () => {
+      if (singleFolderInput.files.length > 0) {
+        processSingleFolderUpload(Array.from(singleFolderInput.files));
+      }
+    });
+
+    // 2. Bulk Folder Upload: Automatically scans subfolders inside v360_data!
+    bulkFolderInput.addEventListener('change', () => {
+      if (bulkFolderInput.files.length > 0) {
+        processUploadFiles(Array.from(bulkFolderInput.files));
       }
     });
 
     fileInput.addEventListener('change', () => {
       if (fileInput.files.length > 0) {
-        processBulkFolderOrFiles(Array.from(fileInput.files));
+        processUploadFiles(Array.from(fileInput.files));
       }
     });
 
-    async function processBulkFolderOrFiles(fileList) {
+    // Handle single SKU folder upload with automatic folder name extraction
+    async function processSingleFolderUpload(fileList) {
+      const uploadStatus = document.getElementById('uploadStatus');
+      const btnAbortUpload = document.getElementById('btnAbortUpload');
+
+      let folderName = 'scanned_item';
+      if (fileList[0] && (fileList[0].webkitRelativePath || fileList[0].relativePath)) {
+        const pathStr = fileList[0].webkitRelativePath || fileList[0].relativePath;
+        const parts = pathStr.split('/').filter(Boolean);
+        if (parts.length > 0) {
+          folderName = parts[0];
+        }
+      }
+
+      currentAbortController = new AbortController();
+      btnAbortUpload.style.display = 'inline-flex';
+      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading SKU Folder '${folderName}' (${fileList.length} files)...`;
+
+      const formData = new FormData();
+      formData.append('stoneId', folderName);
+      fileList.forEach(file => {
+        formData.append('files', file, file.name);
+      });
+
+      try {
+        const res = await fetch(`/api/upload?stoneId=${encodeURIComponent(folderName)}`, {
+          method: 'POST',
+          body: formData,
+          signal: currentAbortController.signal
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully uploaded SKU '${folderName}'!`;
+          showToast(`SKU '${folderName}' uploaded!`);
+          fetchItems();
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          uploadStatus.innerHTML = `<i class="fa-solid fa-circle-xmark" style="color:#ef4444;"></i> Upload stopped.`;
+        } else {
+          uploadStatus.textContent = 'Upload failed: ' + err.message;
+        }
+      } finally {
+        btnAbortUpload.style.display = 'none';
+      }
+    }
+
+    async function processUploadFiles(fileList) {
       const uploadStatus = document.getElementById('uploadStatus');
       const btnAbortUpload = document.getElementById('btnAbortUpload');
 
@@ -873,25 +945,20 @@
           const parts = fileList[0].webkitRelativePath.split('/');
           if (parts.length > 0) singleSku = parts[0];
         }
-        const promptSku = prompt('Confirm Website SKU ID for this 360° scan:', singleSku);
-        if (!promptSku) {
-          btnAbortUpload.style.display = 'none';
-          return;
-        }
-        skuGroups[promptSku.trim()] = fileList;
+        skuGroups[singleSku] = fileList;
       }
 
       const detectedSkus = Object.keys(skuGroups);
-      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Checking cloud library for existing SKUs...`;
+      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Checking PostgreSQL database for existing SKUs...`;
 
       await fetchItems();
       const existingSkus = new Set(rawItems.map(i => (i.sku || i.stoneId).toLowerCase()));
       const newSkus = detectedSkus.filter(sku => !existingSkus.has(sku.toLowerCase()));
 
       if (newSkus.length === 0) {
-        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> All ${detectedSkus.length} SKU folder(s) are already up to date in the cloud library!`;
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> All ${detectedSkus.length} SKU folder(s) already exist in PostgreSQL! No new SKUs to upload.`;
         btnAbortUpload.style.display = 'none';
-        showToast('All SKUs up to date!');
+        showToast('All SKUs up to date in PostgreSQL!');
         return;
       }
 
@@ -900,7 +967,7 @@
         if (!currentAbortController || currentAbortController.signal.aborted) break;
 
         completed++;
-        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Syncing SKU ${completed} of ${newSkus.length}: '${sku}'...`;
+        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading SKU ${completed} of ${newSkus.length}: '${sku}' to PostgreSQL...`;
 
         const formData = new FormData();
         formData.append('stoneId', sku);
@@ -925,8 +992,8 @@
 
       btnAbortUpload.style.display = 'none';
       if (currentAbortController && !currentAbortController.signal.aborted) {
-        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully synced ${newSkus.length} new SKU(s) to cloud library!`;
-        showToast(`Synced ${newSkus.length} new SKUs!`);
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully uploaded ${newSkus.length} new SKU(s) to PostgreSQL!`;
+        showToast(`Synced ${newSkus.length} new SKUs to PostgreSQL!`);
         fetchItems();
       }
     }
