@@ -49,7 +49,51 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// V360 Asset Route - Serves imaged/:stoneId/:filename
+// -------------------------------------------------------------
+// V360 Standalone Player Route
+// Serves the exact exported HTML viewer if present in SKU folder
+// -------------------------------------------------------------
+app.get('/vision360.html', (req, res) => {
+  const stoneId = req.query.d;
+  if (stoneId) {
+    const stoneDir = path.join(MEDIA_DIR, stoneId);
+    if (fs.existsSync(stoneDir)) {
+      const files = fs.readdirSync(stoneDir);
+      // Find standalone HTML exported file (e.g., SE313.html)
+      const standaloneHtml = files.find(f => 
+        f.toLowerCase() === `${stoneId.toLowerCase()}.html` ||
+        (f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html')
+      );
+
+      if (standaloneHtml) {
+        return res.sendFile(path.join(stoneDir, standaloneHtml));
+      }
+    }
+  }
+  res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
+});
+
+// Modern Responsive HTML5 Viewer Route
+app.get('/viewer.html', (req, res) => {
+  const stoneId = req.query.d;
+  if (stoneId) {
+    const stoneDir = path.join(MEDIA_DIR, stoneId);
+    if (fs.existsSync(stoneDir)) {
+      const files = fs.readdirSync(stoneDir);
+      const standaloneHtml = files.find(f => 
+        f.toLowerCase() === `${stoneId.toLowerCase()}.html` ||
+        (f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html')
+      );
+
+      if (standaloneHtml) {
+        return res.sendFile(path.join(stoneDir, standaloneHtml));
+      }
+    }
+  }
+  res.sendFile(path.join(__dirname, 'public', 'viewer.html'));
+});
+
+// V360 Asset Route
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
@@ -73,7 +117,7 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
 
 app.get('/embed/:stoneId', (req, res) => {
   const { stoneId } = req.params;
-  return res.redirect(`/viewer.html?d=${encodeURIComponent(stoneId)}`);
+  return res.redirect(`/vision360.html?d=${encodeURIComponent(stoneId)}`);
 });
 
 function getStoneFrameInfo(stoneDir, stoneId) {
@@ -112,7 +156,7 @@ function getStoneFrameInfo(stoneDir, stoneId) {
   return { frameCount, thumbnail, files, images, hasVideo, hasHtml };
 }
 
-// API: List items for Dashboard (Points default viewer to ultra-fast modern viewer.html)
+// API: SKU Library List
 app.get('/api/items', (req, res) => {
   try {
     const items = fs.readdirSync(MEDIA_DIR).filter(item => {
@@ -130,19 +174,20 @@ app.get('/api/items', (req, res) => {
 
       return {
         stoneId,
+        sku: stoneId,
         frameCount,
         thumbnail,
         hasVideo,
         hasHtml,
         videoUrl: hasVideo ? `/imaged/${stoneId}/video.mp4` : null,
         createdAt: stats.mtime.toISOString(),
-        v360Url: `/viewer.html?d=${stoneId}`,
+        v360Url: `/vision360.html?d=${stoneId}`,
         modernUrl: `/viewer.html?d=${stoneId}`,
-        fullV360Url: `${baseUrl}/viewer.html?d=${stoneId}`,
+        fullV360Url: `${baseUrl}/vision360.html?d=${stoneId}`,
         fullModernUrl: `${baseUrl}/viewer.html?d=${stoneId}`,
-        embedCode: `<iframe src="${baseUrl}/viewer.html?d=${stoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
+        embedCode: `<iframe src="${baseUrl}/vision360.html?d=${stoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
       };
-    }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    });
 
     res.json({ count: itemList.length, items: itemList });
   } catch (err) {
@@ -164,13 +209,14 @@ app.get('/api/items/:stoneId', (req, res) => {
 
   res.json({
     stoneId,
+    sku: stoneId,
     totalFiles: files.length,
     totalFrames: frameCount,
     images,
     jsonFiles,
     hasVideo,
     hasHtml,
-    v360Url: `/viewer.html?d=${stoneId}`,
+    v360Url: `/vision360.html?d=${stoneId}`,
     modernUrl: `/viewer.html?d=${stoneId}`
   });
 });
@@ -181,9 +227,9 @@ app.delete('/api/items/:stoneId', (req, res) => {
 
   if (fs.existsSync(stoneDir)) {
     fs.rmSync(stoneDir, { recursive: true, force: true });
-    return res.json({ success: true, message: `Deleted stone ${stoneId}` });
+    return res.json({ success: true, message: `Deleted SKU ${stoneId}` });
   }
-  res.status(404).json({ error: 'Stone not found' });
+  res.status(404).json({ error: 'SKU not found' });
 });
 
 app.post('/api/upload-zip', upload.single('file'), (req, res) => {
@@ -235,10 +281,11 @@ app.post('/api/upload-zip', upload.single('file'), (req, res) => {
     res.json({
       success: true,
       stoneId: targetStoneId,
-      message: `Successfully unzipped and created 360° item '${targetStoneId}'`,
-      v360Url: `${baseUrl}/viewer.html?d=${targetStoneId}`,
+      sku: targetStoneId,
+      message: `Successfully unzipped and created 360° SKU '${targetStoneId}'`,
+      v360Url: `${baseUrl}/vision360.html?d=${targetStoneId}`,
       modernUrl: `${baseUrl}/viewer.html?d=${targetStoneId}`,
-      embedCode: `<iframe src="${baseUrl}/viewer.html?d=${targetStoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
+      embedCode: `<iframe src="${baseUrl}/vision360.html?d=${targetStoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
     });
   } catch (err) {
     if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
@@ -249,7 +296,7 @@ app.post('/api/upload-zip', upload.single('file'), (req, res) => {
 app.post('/api/upload', upload.array('files'), (req, res) => {
   const stoneId = req.body.stoneId || req.query.stoneId;
   if (!stoneId) {
-    return res.status(400).json({ error: 'Missing stoneId parameter' });
+    return res.status(400).json({ error: 'Missing stoneId/SKU parameter' });
   }
 
   const hostHeader = req.get('host');
@@ -258,10 +305,11 @@ app.post('/api/upload', upload.array('files'), (req, res) => {
 
   res.json({
     success: true,
-    message: `Successfully uploaded ${req.files ? req.files.length : 0} files for stone ${stoneId}`,
+    message: `Successfully uploaded ${req.files ? req.files.length : 0} files for SKU ${stoneId}`,
     stoneId,
+    sku: stoneId,
     modernUrl: `${baseUrl}/viewer.html?d=${stoneId}`,
-    v360Url: `${baseUrl}/viewer.html?d=${stoneId}`
+    v360Url: `${baseUrl}/vision360.html?d=${stoneId}`
   });
 });
 

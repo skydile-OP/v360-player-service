@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>V360 Cloud Dashboard - Self-Hosted Diamond & Jewelry Portal</title>
+  <title>V360 SKU Library - Self-Hosted Diamond & Jewelry Portal</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     * {
@@ -58,11 +58,11 @@
       background: #1e293b;
       border: 2px dashed #475569;
       border-radius: 16px;
-      padding: 40px 24px;
+      padding: 36px 24px;
       text-align: center;
       cursor: pointer;
       transition: all 0.25s ease;
-      margin-bottom: 36px;
+      margin-bottom: 32px;
       position: relative;
     }
     .upload-card:hover, .upload-card.dragover {
@@ -70,19 +70,19 @@
       background: rgba(56, 189, 248, 0.05);
     }
     .upload-icon {
-      font-size: 48px;
+      font-size: 44px;
       color: #38bdf8;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
     .upload-title {
       font-size: 18px;
       font-weight: 600;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     .upload-subtitle {
       font-size: 14px;
       color: #94a3b8;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
     }
     .btn-group-upload {
       display: flex;
@@ -117,23 +117,27 @@
       display: none;
     }
 
-    .section-header {
+    /* Controls Bar: Search, Sort & View Mode */
+    .controls-bar {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 16px 24px;
+      margin-bottom: 24px;
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 24px;
-    }
-    .section-title {
-      font-size: 22px;
-      font-weight: 700;
+      gap: 16px;
     }
     .search-box {
       position: relative;
-      width: 300px;
+      flex: 1;
+      min-width: 260px;
     }
     .search-box input {
       width: 100%;
-      background: #1e293b;
+      background: #0f172a;
       border: 1px solid #334155;
       padding: 10px 16px 10px 40px;
       border-radius: 8px;
@@ -149,6 +153,45 @@
       color: #64748b;
     }
 
+    .sort-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .select-sort {
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      cursor: pointer;
+    }
+    .view-toggle {
+      display: flex;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 2px;
+    }
+    .btn-toggle {
+      background: transparent;
+      border: none;
+      color: #64748b;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+    .btn-toggle.active {
+      background: #38bdf8;
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    /* Grid Gallery View */
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -276,6 +319,48 @@
       color: #ef4444;
     }
 
+    /* Table List View */
+    .table-wrapper {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      overflow: hidden;
+      display: none;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    th {
+      background: #0f172a;
+      padding: 14px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #94a3b8;
+      border-bottom: 1px solid #334155;
+    }
+    td {
+      padding: 16px 20px;
+      border-bottom: 1px solid #334155;
+      font-size: 14px;
+      vertical-align: middle;
+    }
+    tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .tbl-thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #090d16;
+    }
+    .tbl-sku {
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
     .modal {
       display: none;
       position: fixed;
@@ -339,20 +424,21 @@
   <nav class="navbar">
     <div class="logo">
       <i class="fa-solid fa-gem"></i>
-      <span>V360 Dashboard</span>
+      <span>V360 SKU Library</span>
     </div>
     <span class="badge">Self-Hosted Railway Server</span>
   </nav>
 
   <div class="container">
+    <!-- Web Drag & Drop Upload Zone -->
     <div class="upload-card" id="dropZone">
       <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-      <div class="upload-title" id="uploadStatus">Upload 360° Scan Folder or Files</div>
+      <div class="upload-title" id="uploadStatus">Upload New 360° SKU Folder or Files</div>
       <div class="upload-subtitle">Drag & drop your scanned stone folder directly here (e.g. from E:\vision360_data)</div>
       
       <div class="btn-group-upload">
         <button class="btn-upload" type="button" onclick="document.getElementById('folderInput').click()">
-          <i class="fa-solid fa-folder-open"></i> Select Scan Folder
+          <i class="fa-solid fa-folder-open"></i> Select SKU Scan Folder
         </button>
         <button class="btn-upload btn-upload-sec" type="button" onclick="document.getElementById('fileInput').click()">
           <i class="fa-solid fa-file-zipper"></i> Select ZIP or Files
@@ -363,23 +449,57 @@
       <input type="file" id="fileInput" multiple accept=".zip,.jpg,.jpeg,.png,.webp,.json,.mp4,.html">
     </div>
 
-    <div class="section-header">
-      <div class="section-title">
-        Scanned Items (<span id="itemCount">0</span>)
-      </div>
+    <!-- SKU Library Toolbar: Search, Sort & View Mode Toggle -->
+    <div class="controls-bar">
       <div class="search-box">
         <i class="fa-solid fa-magnifying-glass"></i>
-        <input type="text" id="searchInput" placeholder="Search by Stone ID...">
+        <input type="text" id="searchInput" placeholder="Search by SKU / Stone ID...">
+      </div>
+
+      <div class="sort-group">
+        <select class="select-sort" id="sortSelect" onchange="applySortAndFilter()">
+          <option value="date-desc">Sort: Date (Newest First)</option>
+          <option value="date-asc">Sort: Date (Oldest First)</option>
+          <option value="name-asc">Sort: SKU Name (A → Z)</option>
+          <option value="name-desc">Sort: SKU Name (Z → A)</option>
+        </select>
+
+        <div class="view-toggle">
+          <button class="btn-toggle active" id="btnGridView" onclick="setViewMode('grid')" title="Grid Gallery View">
+            <i class="fa-solid fa-grip-vertical"></i> Grid
+          </button>
+          <button class="btn-toggle" id="btnTableView" onclick="setViewMode('table')" title="Table List View">
+            <i class="fa-solid fa-list"></i> Table
+          </button>
+        </div>
       </div>
     </div>
 
+    <!-- Items Grid Gallery -->
     <div class="grid" id="itemsGrid">
       <div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 40px;">
-        Loading 360° items inventory...
+        Loading 360° SKU Library...
       </div>
+    </div>
+
+    <!-- Items Table List View -->
+    <div class="table-wrapper" id="itemsTableWrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Thumbnail</th>
+            <th>Website SKU ID</th>
+            <th>Frames</th>
+            <th>Date Scanned</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
     </div>
   </div>
 
+  <!-- Interactive Viewer Modal -->
   <div class="modal" id="viewerModal">
     <div class="modal-content" id="modalContainer">
       <button class="modal-close" onclick="closeModal()">✕</button>
@@ -390,41 +510,83 @@
   <div class="toast" id="toast">Copied to clipboard!</div>
 
   <script>
-    let allItems = [];
+    let rawItems = [];
+    let currentViewMode = 'grid';
 
     async function fetchItems() {
       try {
         const res = await fetch('/api/items');
         const data = await res.json();
-        allItems = data.items || [];
-        renderItems(allItems);
+        rawItems = data.items || [];
+        applySortAndFilter();
       } catch (err) {
         console.error('Failed to load items:', err);
       }
     }
 
+    function applySortAndFilter() {
+      const q = document.getElementById('searchInput').value.toLowerCase().trim();
+      const sortType = document.getElementById('sortSelect').value;
+
+      // 1. Search Filter
+      let items = rawItems.filter(item => (item.sku || item.stoneId).toLowerCase().includes(q));
+
+      // 2. Sorting Logic
+      items.sort((a, b) => {
+        if (sortType === 'date-desc') {
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        } else if (sortType === 'date-asc') {
+          return new Date(a.createdAt) - new Date(b.createdAt);
+        } else if (sortType === 'name-asc') {
+          return (a.sku || a.stoneId).localeCompare(b.sku || b.stoneId, undefined, { numeric: true, sensitivity: 'base' });
+        } else if (sortType === 'name-desc') {
+          return (b.sku || b.stoneId).localeCompare(a.sku || a.stoneId, undefined, { numeric: true, sensitivity: 'base' });
+        }
+        return 0;
+      });
+
+      renderItems(items);
+    }
+
+    function setViewMode(mode) {
+      currentViewMode = mode;
+      document.getElementById('btnGridView').classList.toggle('active', mode === 'grid');
+      document.getElementById('btnTableView').classList.toggle('active', mode === 'table');
+
+      document.getElementById('itemsGrid').style.display = mode === 'grid' ? 'grid' : 'none';
+      document.getElementById('itemsTableWrapper').style.display = mode === 'table' ? 'block' : 'none';
+    }
+
     function renderItems(items) {
       const grid = document.getElementById('itemsGrid');
-      document.getElementById('itemCount').textContent = items.length;
+      const tableBody = document.getElementById('tableBody');
 
       if (items.length === 0) {
         grid.innerHTML = `
           <div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 60px;">
             <i class="fa-solid fa-gem" style="font-size: 40px; margin-bottom: 12px;"></i>
-            <p>No 360° items uploaded yet. Drag & drop a scan folder above to add your first item!</p>
+            <p>No matching SKUs found in library. Drag & drop a scan folder above to add an item!</p>
           </div>
+        `;
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align: center; color: #64748b; padding: 40px;">
+              No matching SKUs found in library.
+            </td>
+          </tr>
         `;
         return;
       }
 
+      // Render Grid View
       grid.innerHTML = items.map(item => `
         <div class="card">
           <div class="card-thumb">
-            <span class="card-badge">${item.frameCount > 0 ? item.frameCount + ' Frames' : 'Scan Data'}</span>
-            <img src="${item.thumbnail || '/css/images/info.png'}" alt="${item.stoneId}" onerror="this.src='/css/images/info.png'">
+            <span class="card-badge">${item.frameCount > 0 ? item.frameCount + ' Frames' : '360° Data'}</span>
+            <img src="${item.thumbnail || '/css/images/info.png'}" alt="${item.sku}" onerror="this.src='/css/images/info.png'">
           </div>
           <div class="card-body">
-            <div class="stone-id">${item.stoneId}</div>
+            <div class="stone-id">SKU: ${item.sku}</div>
             <div class="card-meta">Scanned: ${new Date(item.createdAt).toLocaleDateString()}</div>
             <div class="card-actions">
               <button class="btn-action-main" onclick="openModal('${item.v360Url}', false)">
@@ -444,10 +606,10 @@
                 </button>
               </div>
               <div class="btn-group-sm">
-                <button class="btn-sm" onclick="shareWhatsApp('${item.stoneId}', '${item.fullV360Url || item.v360Url}')">
+                <button class="btn-sm" onclick="shareWhatsApp('${item.sku}', '${item.fullV360Url || item.v360Url}')">
                   <i class="fa-brands fa-whatsapp"></i> WhatsApp
                 </button>
-                <button class="btn-sm btn-delete" onclick="deleteItem('${item.stoneId}')">
+                <button class="btn-sm btn-delete" onclick="deleteItem('${item.sku}')">
                   <i class="fa-solid fa-trash"></i>
                 </button>
               </div>
@@ -455,16 +617,44 @@
           </div>
         </div>
       `).join('');
+
+      // Render Table View
+      tableBody.innerHTML = items.map(item => `
+        <tr>
+          <td>
+            <img src="${item.thumbnail || '/css/images/info.png'}" class="tbl-thumb" alt="${item.sku}" onerror="this.src='/css/images/info.png'">
+          </td>
+          <td><span class="tbl-sku">${item.sku}</span></td>
+          <td>${item.frameCount > 0 ? item.frameCount + ' frames' : 'Data'}</td>
+          <td>${new Date(item.createdAt).toLocaleDateString()}</td>
+          <td>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-sm" style="background:#0284c7; color:#fff;" onclick="openModal('${item.v360Url}', false)">
+                <i class="fa-solid fa-arrows-spin"></i> View 360°
+              </button>
+              ${item.hasVideo ? `
+                <button class="btn-sm" style="background:#8b5cf6; color:#fff;" onclick="openModal('${item.videoUrl}', true)">
+                  <i class="fa-solid fa-video"></i> Video
+                </button>
+              ` : ''}
+              <button class="btn-sm" onclick="copyToClipboard('${item.fullV360Url || item.v360Url}')">
+                <i class="fa-solid fa-link"></i> Copy Link
+              </button>
+              <button class="btn-sm" onclick="copyToClipboard('${item.embedCode}')">
+                <i class="fa-solid fa-code"></i> Embed Code
+              </button>
+              <button class="btn-sm btn-delete" onclick="deleteItem('${item.sku}')">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
     }
 
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-      const q = e.target.value.toLowerCase().trim();
-      const filtered = allItems.filter(item => item.stoneId.toLowerCase().includes(q));
-      renderItems(filtered);
-    });
+    document.getElementById('searchInput').addEventListener('input', applySortAndFilter);
 
     function openModal(rawUrl, isVideo = false) {
-      // Ensure clean relative/HTTPS URL for iframe to prevent browser Mixed Content block
       let url = rawUrl.replace(/^http:\/\/[^\/]+/, '');
       if (!url.startsWith('/') && !url.startsWith('https://')) {
         url = '/' + url.replace(/^\/+/, '');
@@ -503,21 +693,21 @@
       setTimeout(() => toast.style.display = 'none', 2500);
     }
 
-    function shareWhatsApp(stoneId, url) {
-      const msg = encodeURIComponent(`Check out the 360° view of diamond ${stoneId}: ${url}`);
+    function shareWhatsApp(sku, url) {
+      const msg = encodeURIComponent(`Check out the 360° view of diamond ${sku}: ${url}`);
       window.open(`https://wa.me/?text=${msg}`, '_blank');
     }
 
-    async function deleteItem(stoneId) {
-      if (!confirm(`Are you sure you want to delete 360° scan for ${stoneId}?`)) return;
+    async function deleteItem(sku) {
+      if (!confirm(`Are you sure you want to delete 360° scan for SKU ${sku}?`)) return;
       try {
-        const res = await fetch(`/api/items/${stoneId}`, { method: 'DELETE' });
+        const res = await fetch(`/api/items/${sku}`, { method: 'DELETE' });
         if (res.ok) {
-          showToast(`Deleted ${stoneId}`);
+          showToast(`Deleted SKU ${sku}`);
           fetchItems();
         }
       } catch (err) {
-        alert('Failed to delete item: ' + err.message);
+        alert('Failed to delete SKU: ' + err.message);
       }
     }
 
@@ -592,8 +782,8 @@
           const res = await fetch('/api/upload-zip', { method: 'POST', body: formData });
           const data = await res.json();
           if (res.ok && data.success) {
-            uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Created 360° view for '${data.stoneId}'!`;
-            showToast(`Item '${data.stoneId}' created!`);
+            uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Created 360° SKU '${data.sku}'!`;
+            showToast(`SKU '${data.sku}' created!`);
             fetchItems();
           } else {
             uploadStatus.textContent = 'Upload failed: ' + (data.error || 'Unknown error');
@@ -604,36 +794,37 @@
         return;
       }
 
-      let stoneId = 'scanned_item';
+      // Infer SKU from folder name
+      let detectedSku = 'SKU_' + Date.now().toString().slice(-4);
       if (fileList[0].webkitRelativePath) {
         const parts = fileList[0].webkitRelativePath.split('/');
-        if (parts.length > 1) stoneId = parts[0];
+        if (parts.length > 1) detectedSku = parts[0];
       } else if (fileList[0].relativePath) {
         const parts = fileList[0].relativePath.split('/');
-        if (parts.length > 1) stoneId = parts[0];
+        if (parts.length > 1) detectedSku = parts[0];
       }
 
-      const promptId = prompt('Enter Stone ID for this 360° scan:', stoneId);
-      if (!promptId) return;
-      stoneId = promptId.trim();
+      const promptSku = prompt('Confirm Website SKU ID for this 360° scan:', detectedSku);
+      if (!promptSku) return;
+      const sku = promptSku.trim();
 
-      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading ${fileList.length} files for '${stoneId}'...`;
+      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading ${fileList.length} files for SKU '${sku}'...`;
 
       const formData = new FormData();
-      formData.append('stoneId', stoneId);
+      formData.append('stoneId', sku);
       fileList.forEach(file => {
         formData.append('files', file, file.name);
       });
 
       try {
-        const res = await fetch(`/api/upload?stoneId=${encodeURIComponent(stoneId)}`, {
+        const res = await fetch(`/api/upload?stoneId=${encodeURIComponent(sku)}`, {
           method: 'POST',
           body: formData
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully uploaded 360° scan for '${stoneId}'!`;
-          showToast(`Item '${stoneId}' uploaded!`);
+          uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully added SKU '${sku}' to library!`;
+          showToast(`SKU '${sku}' uploaded!`);
           fetchItems();
         } else {
           uploadStatus.textContent = 'Upload failed: ' + (data.error || 'Unknown error');
