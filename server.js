@@ -87,6 +87,39 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+const WEISS_BRANDING_INJECTION = `
+<style>
+  #FixedWaterMark img, #watermark img, .watermarkImage {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+</style>
+<script>
+  (function() {
+    function injectWeissLogo() {
+      var imgs = document.querySelectorAll('#FixedWaterMark img, #watermark img, .watermarkImage');
+      imgs.forEach(function(img){ img.style.display = 'none'; img.style.visibility = 'hidden'; });
+      if (!document.getElementById('customWeissWatermark')) {
+        var a = document.createElement('a');
+        a.id = 'customWeissWatermark';
+        a.href = 'https://weissdiamonds.com';
+        a.target = '_blank';
+        a.innerHTML = 'Weissdiamonds.com';
+        a.setAttribute('style', 'position:fixed; bottom:18px; right:24px; font-weight:700; font-size:15px; color:#334155; text-decoration:none; z-index:99999; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif; background:rgba(255,255,255,0.92); padding:5px 12px; border-radius:6px; border:1px solid #cbd5e1; box-shadow:0 2px 8px rgba(0,0,0,0.08); cursor:pointer; display:block !important;');
+        document.body.appendChild(a);
+      }
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', injectWeissLogo);
+    } else {
+      injectWeissLogo();
+    }
+    setInterval(injectWeissLogo, 200);
+  })();
+</script>
+</body>`;
+
 // Serve exported standalone V360 HTML page if present (e.g. SE313.html)
 app.get('/vision360.html', (req, res) => {
   const stoneId = req.query.d;
@@ -96,7 +129,10 @@ app.get('/vision360.html', (req, res) => {
       const files = fs.readdirSync(stoneDir);
       const standaloneHtml = files.find(f => f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html');
       if (standaloneHtml) {
-        return res.sendFile(path.join(stoneDir, standaloneHtml));
+        let content = fs.readFileSync(path.join(stoneDir, standaloneHtml), 'utf8');
+        content = content.replace('</body>', WEISS_BRANDING_INJECTION);
+        res.setHeader('Content-Type', 'text/html');
+        return res.send(content);
       }
     }
   }
@@ -111,7 +147,10 @@ app.get('/viewer.html', (req, res) => {
       const files = fs.readdirSync(stoneDir);
       const standaloneHtml = files.find(f => f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html');
       if (standaloneHtml) {
-        return res.sendFile(path.join(stoneDir, standaloneHtml));
+        let content = fs.readFileSync(path.join(stoneDir, standaloneHtml), 'utf8');
+        content = content.replace('</body>', WEISS_BRANDING_INJECTION);
+        res.setHeader('Content-Type', 'text/html');
+        return res.send(content);
       }
     }
   }

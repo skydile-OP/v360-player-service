@@ -4,7 +4,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
-    <title>V360 Official Interactive Viewer</title>
+    <title>Weissdiamonds.com 360° Interactive Viewer</title>
     <link href="css/vision360.css" rel="stylesheet" type="text/css" />
     <script src="js/jquery.min.js"></script>
     <script type="text/javascript" src="js/w.js"></script>
@@ -22,8 +22,10 @@
             width: 100%;
             height: 100%;
         }
-        #FixedWaterMark, #watermark {
-            bottom: 15px;
+        #FixedWaterMark img, #watermark img, .watermarkImage {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
         }
         .divbtnpos .btnpos img {
             max-width: 40px !important;
@@ -51,6 +53,8 @@
                 zoomslide: 1,
                 autoPlay: 1,
                 speed: 180,
+                watermarkLink: 'https://weissdiamonds.com',
+                otherLogoLink: 'https://weissdiamonds.com',
                 iconPath: '/image/',
                 iconPlay: '/image/play.png?v=2',
                 iconPause: '/image/pause.png?v=2',
@@ -68,6 +72,14 @@
                 iconLV: '/image/left.png?v=2',
                 iconAutoPlay: '/image/autoplay.png?v=2'
             });
+
+            // Enforce Weissdiamonds.com watermark branding
+            setInterval(function() {
+                $('#FixedWaterMark img, #watermark img, .watermarkImage').hide();
+                if ($('#customWeissWatermark').length === 0) {
+                    $('<a id="customWeissWatermark" href="https://weissdiamonds.com" target="_blank" style="position:fixed; bottom:18px; right:24px; font-weight:700; font-size:15px; color:#334155; text-decoration:none; z-index:99999; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif; background:rgba(255,255,255,0.92); padding:5px 12px; border-radius:6px; border:1px solid #cbd5e1; box-shadow:0 2px 8px rgba(0,0,0,0.08); cursor:pointer; display:block !important;">Weissdiamonds.com</a>').appendTo('body');
+                }
+            }, 200);
       });
     </script>
 </head>
