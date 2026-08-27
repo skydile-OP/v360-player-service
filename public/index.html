@@ -476,14 +476,14 @@
     <div class="upload-card" id="dropZone">
       <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
       <div class="upload-title" id="uploadStatus">Bulk Local Scan Sync & Upload</div>
-      <div class="upload-subtitle">Drag & drop a single SKU folder (e.g. <code>PR048</code>) or master scan folder (e.g. <code>E:\vision360_data</code>)</div>
+      <div class="upload-subtitle">Select master scan folder (e.g. <code>E:\vision360_data</code>) to sync all subfolder SKUs automatically</div>
       
       <div class="btn-group-upload">
-        <button class="btn-upload btn-upload-sec" type="button" onclick="document.getElementById('singleFolderInput').click()">
-          <i class="fa-solid fa-folder-plus"></i> Upload Single SKU Folder
-        </button>
         <button class="btn-upload btn-sync-refresh" type="button" onclick="document.getElementById('bulkFolderInput').click()">
           <i class="fa-solid fa-rotate"></i> Sync Bulk Scans (E:\vision360_data)
+        </button>
+        <button class="btn-upload btn-upload-sec" type="button" onclick="document.getElementById('singleFolderInput').click()">
+          <i class="fa-solid fa-folder-plus"></i> Upload Single SKU Folder
         </button>
         <button class="btn-upload btn-upload-sec" type="button" onclick="document.getElementById('fileInput').click()">
           <i class="fa-solid fa-file-zipper"></i> Upload ZIP
@@ -822,14 +822,14 @@
       }
     }
 
-    // 1. Single Folder Upload: Automatically extracts SKU name from folder name!
+    // Single Folder Upload: Automatically extracts SKU name from folder name
     singleFolderInput.addEventListener('change', () => {
       if (singleFolderInput.files.length > 0) {
         processSingleFolderUpload(Array.from(singleFolderInput.files));
       }
     });
 
-    // 2. Bulk Folder Upload: Automatically scans subfolders inside v360_data!
+    // Bulk Master Folder Upload: Automatically groups files by subfolder SKU names!
     bulkFolderInput.addEventListener('change', () => {
       if (bulkFolderInput.files.length > 0) {
         processUploadFiles(Array.from(bulkFolderInput.files));
@@ -842,7 +842,6 @@
       }
     });
 
-    // Handle single SKU folder upload with automatic folder name extraction
     async function processSingleFolderUpload(fileList) {
       const uploadStatus = document.getElementById('uploadStatus');
       const btnAbortUpload = document.getElementById('btnAbortUpload');
@@ -925,38 +924,37 @@
         return;
       }
 
+      // Smart Subfolder Grouping Algorithm for Bulk Master Scans Folder Selection
       const skuGroups = {};
-      let hasSubfolders = false;
 
       for (let file of fileList) {
-        let relativePath = file.webkitRelativePath || file.relativePath || '';
+        let relativePath = file.webkitRelativePath || file.relativePath || file.name || '';
         const parts = relativePath.split('/').filter(Boolean);
-        if (parts.length > 1) {
-          hasSubfolders = true;
-          const sku = parts[0];
-          if (!skuGroups[sku]) skuGroups[sku] = [];
-          skuGroups[sku].push(file);
+        
+        let sku = 'unclassified';
+        if (parts.length >= 3) {
+          // Master directory selected (parts[0]=v360_data, parts[1]=SKU_ID, parts[2]=file.json)
+          sku = parts[1];
+        } else if (parts.length === 2) {
+          // Single SKU folder selected (parts[0]=SKU_ID, parts[1]=file.json)
+          sku = parts[0];
+        } else {
+          sku = 'unclassified';
         }
+
+        if (!skuGroups[sku]) skuGroups[sku] = [];
+        skuGroups[sku].push(file);
       }
 
-      if (!hasSubfolders) {
-        let singleSku = 'scanned_item';
-        if (fileList[0].webkitRelativePath) {
-          const parts = fileList[0].webkitRelativePath.split('/');
-          if (parts.length > 0) singleSku = parts[0];
-        }
-        skuGroups[singleSku] = fileList;
-      }
-
-      const detectedSkus = Object.keys(skuGroups);
-      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Checking PostgreSQL database for existing SKUs...`;
+      const detectedSkus = Object.keys(skuGroups).filter(k => k !== 'unclassified');
+      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Found ${detectedSkus.length} SKU subfolder(s). Checking PostgreSQL database...`;
 
       await fetchItems();
       const existingSkus = new Set(rawItems.map(i => (i.sku || i.stoneId).toLowerCase()));
       const newSkus = detectedSkus.filter(sku => !existingSkus.has(sku.toLowerCase()));
 
       if (newSkus.length === 0) {
-        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> All ${detectedSkus.length} SKU folder(s) already exist in PostgreSQL! No new SKUs to upload.`;
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> All ${detectedSkus.length} SKU subfolder(s) already exist in PostgreSQL! No missing SKUs to upload.`;
         btnAbortUpload.style.display = 'none';
         showToast('All SKUs up to date in PostgreSQL!');
         return;
