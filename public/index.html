@@ -88,6 +88,7 @@
       display: flex;
       justify-content: center;
       gap: 12px;
+      flex-wrap: wrap;
     }
     .btn-upload {
       background: #38bdf8;
@@ -113,11 +114,17 @@
     .btn-upload-sec:hover {
       background: #475569;
     }
+    .btn-sync-refresh {
+      background: #10b981;
+      color: #fff;
+    }
+    .btn-sync-refresh:hover {
+      background: #059669;
+    }
     #folderInput, #fileInput {
       display: none;
     }
 
-    /* Controls Bar: Search, Sort & View Mode */
     .controls-bar {
       background: #1e293b;
       border: 1px solid #334155;
@@ -191,7 +198,6 @@
       font-weight: 600;
     }
 
-    /* Grid Gallery View */
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -319,7 +325,6 @@
       color: #ef4444;
     }
 
-    /* Table List View */
     .table-wrapper {
       background: #1e293b;
       border: 1px solid #334155;
@@ -430,18 +435,18 @@
   </nav>
 
   <div class="container">
-    <!-- Web Drag & Drop Upload Zone -->
+    <!-- Web Upload Card with Bulk Local Folder Sync Button -->
     <div class="upload-card" id="dropZone">
       <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-      <div class="upload-title" id="uploadStatus">Upload New 360° SKU Folder or Files</div>
-      <div class="upload-subtitle">Drag & drop your scanned stone folder directly here (e.g. from E:\vision360_data)</div>
+      <div class="upload-title" id="uploadStatus">Bulk Local Folder Sync & Upload</div>
+      <div class="upload-subtitle">Drag & drop your entire <code style="color:#38bdf8;">E:\vision360_data</code> folder or select scan directories</div>
       
       <div class="btn-group-upload">
-        <button class="btn-upload" type="button" onclick="document.getElementById('folderInput').click()">
-          <i class="fa-solid fa-folder-open"></i> Select SKU Scan Folder
+        <button class="btn-upload btn-sync-refresh" type="button" onclick="document.getElementById('folderInput').click()">
+          <i class="fa-solid fa-rotate"></i> Sync New Local Scans (E:\vision360_data)
         </button>
         <button class="btn-upload btn-upload-sec" type="button" onclick="document.getElementById('fileInput').click()">
-          <i class="fa-solid fa-file-zipper"></i> Select ZIP or Files
+          <i class="fa-solid fa-file-zipper"></i> Upload ZIP / Files
         </button>
       </div>
 
@@ -449,7 +454,7 @@
       <input type="file" id="fileInput" multiple accept=".zip,.jpg,.jpeg,.png,.webp,.json,.mp4,.html">
     </div>
 
-    <!-- SKU Library Toolbar: Search, Sort & View Mode Toggle -->
+    <!-- Controls Bar -->
     <div class="controls-bar">
       <div class="search-box">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -528,10 +533,8 @@
       const q = document.getElementById('searchInput').value.toLowerCase().trim();
       const sortType = document.getElementById('sortSelect').value;
 
-      // 1. Search Filter
       let items = rawItems.filter(item => (item.sku || item.stoneId).toLowerCase().includes(q));
 
-      // 2. Sorting Logic
       items.sort((a, b) => {
         if (sortType === 'date-desc') {
           return new Date(b.createdAt) - new Date(a.createdAt);
@@ -565,7 +568,7 @@
         grid.innerHTML = `
           <div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 60px;">
             <i class="fa-solid fa-gem" style="font-size: 40px; margin-bottom: 12px;"></i>
-            <p>No matching SKUs found in library. Drag & drop a scan folder above to add an item!</p>
+            <p>No matching SKUs found in library. Click 'Sync New Local Scans' or drag & drop a scan folder above!</p>
           </div>
         `;
         tableBody.innerHTML = `
@@ -578,7 +581,6 @@
         return;
       }
 
-      // Render Grid View
       grid.innerHTML = items.map(item => `
         <div class="card">
           <div class="card-thumb">
@@ -618,7 +620,6 @@
         </div>
       `).join('');
 
-      // Render Table View
       tableBody.innerHTML = items.map(item => `
         <tr>
           <td>
@@ -740,7 +741,7 @@
         }
       }
       if (files.length > 0) {
-        uploadFilesOrZip(files);
+        processBulkFolderOrFiles(files);
       }
     });
 
@@ -760,19 +761,21 @@
 
     folderInput.addEventListener('change', () => {
       if (folderInput.files.length > 0) {
-        uploadFilesOrZip(Array.from(folderInput.files));
+        processBulkFolderOrFiles(Array.from(folderInput.files));
       }
     });
 
     fileInput.addEventListener('change', () => {
       if (fileInput.files.length > 0) {
-        uploadFilesOrZip(Array.from(fileInput.files));
+        processBulkFolderOrFiles(Array.from(fileInput.files));
       }
     });
 
-    async function uploadFilesOrZip(fileList) {
+    // Intelligent Bulk Sync & Upload
+    async function processBulkFolderOrFiles(fileList) {
       const uploadStatus = document.getElementById('uploadStatus');
 
+      // 1. Single ZIP file upload
       if (fileList.length === 1 && fileList[0].name.toLowerCase().endsWith('.zip')) {
         uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Unzipping '${fileList[0].name}'...`;
         const formData = new FormData();
@@ -794,44 +797,72 @@
         return;
       }
 
-      // Infer SKU from folder name
-      let detectedSku = 'SKU_' + Date.now().toString().slice(-4);
-      if (fileList[0].webkitRelativePath) {
-        const parts = fileList[0].webkitRelativePath.split('/');
-        if (parts.length > 1) detectedSku = parts[0];
-      } else if (fileList[0].relativePath) {
-        const parts = fileList[0].relativePath.split('/');
-        if (parts.length > 1) detectedSku = parts[0];
-      }
+      // 2. Group files by top-level SKU subfolder name
+      const skuGroups = {};
+      let hasSubfolders = false;
 
-      const promptSku = prompt('Confirm Website SKU ID for this 360° scan:', detectedSku);
-      if (!promptSku) return;
-      const sku = promptSku.trim();
-
-      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading ${fileList.length} files for SKU '${sku}'...`;
-
-      const formData = new FormData();
-      formData.append('stoneId', sku);
-      fileList.forEach(file => {
-        formData.append('files', file, file.name);
-      });
-
-      try {
-        const res = await fetch(`/api/upload?stoneId=${encodeURIComponent(sku)}`, {
-          method: 'POST',
-          body: formData
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully added SKU '${sku}' to library!`;
-          showToast(`SKU '${sku}' uploaded!`);
-          fetchItems();
-        } else {
-          uploadStatus.textContent = 'Upload failed: ' + (data.error || 'Unknown error');
+      for (let file of fileList) {
+        let relativePath = file.webkitRelativePath || file.relativePath || '';
+        const parts = relativePath.split('/').filter(Boolean);
+        if (parts.length > 1) {
+          hasSubfolders = true;
+          const sku = parts[0];
+          if (!skuGroups[sku]) skuGroups[sku] = [];
+          skuGroups[sku].push(file);
         }
-      } catch (err) {
-        uploadStatus.textContent = 'Upload error: ' + err.message;
       }
+
+      // If single SKU folder or loose files
+      if (!hasSubfolders) {
+        let singleSku = 'scanned_item';
+        if (fileList[0].webkitRelativePath) {
+          const parts = fileList[0].webkitRelativePath.split('/');
+          if (parts.length > 0) singleSku = parts[0];
+        }
+        const promptSku = prompt('Confirm Website SKU ID for this 360° scan:', singleSku);
+        if (!promptSku) return;
+        skuGroups[promptSku.trim()] = fileList;
+      }
+
+      const detectedSkus = Object.keys(skuGroups);
+      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Checking cloud library for existing SKUs...`;
+
+      // 3. Compare with existing cloud SKUs to skip older ones
+      await fetchItems();
+      const existingSkus = new Set(rawItems.map(i => (i.sku || i.stoneId).toLowerCase()));
+      const newSkus = detectedSkus.filter(sku => !existingSkus.has(sku.toLowerCase()));
+
+      if (newSkus.length === 0) {
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> All ${detectedSkus.length} SKU folder(s) are already up to date in the cloud library!`;
+        showToast('All SKUs up to date!');
+        return;
+      }
+
+      // 4. Batch upload only NEW SKUs
+      let completed = 0;
+      for (let sku of newSkus) {
+        completed++;
+        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Syncing new SKU ${completed} of ${newSkus.length}: '${sku}'...`;
+
+        const formData = new FormData();
+        formData.append('stoneId', sku);
+        skuGroups[sku].forEach(file => {
+          formData.append('files', file, file.name);
+        });
+
+        try {
+          await fetch(`/api/upload?stoneId=${encodeURIComponent(sku)}`, {
+            method: 'POST',
+            body: formData
+          });
+        } catch (err) {
+          console.error(`Failed to upload SKU ${sku}:`, err);
+        }
+      }
+
+      uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully synced ${newSkus.length} new SKU(s) to cloud library!`;
+      showToast(`Synced ${newSkus.length} new SKUs!`);
+      fetchItems();
     }
 
     fetchItems();
