@@ -3,5 +3,6 @@ node_modules/
 *.log
 data/media/*
 !data/media/sample_item
+!data/media/SE313
 test_scan_folder/
 .DS_Store
