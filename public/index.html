@@ -428,8 +428,8 @@
       height: 100%;
       object-fit: contain;
       background: #ffffff !important;
-      filter: contrast(1.06) brightness(0.92) saturate(0.92) hue-rotate(-2deg) !important;
-      -webkit-filter: contrast(1.06) brightness(0.92) saturate(0.92) hue-rotate(-2deg) !important;
+      filter: none !important;
+      -webkit-filter: none !important;
     }
 
     .toast {
@@ -688,7 +688,7 @@
       if (isVideo) {
         container.innerHTML = `
           <button class="modal-close" onclick="closeModal()">✕</button>
-          <video src="${url}" controls autoplay loop style="width:100%;height:100%;object-fit:contain;background:#ffffff !important;filter:contrast(1.06) brightness(0.92) saturate(0.92) hue-rotate(-2deg) !important;-webkit-filter:contrast(1.06) brightness(0.92) saturate(0.92) hue-rotate(-2deg) !important;"></video>
+          <video src="${url}" controls autoplay loop style="width:100%;height:100%;object-fit:contain;background:#ffffff !important;filter:none !important;-webkit-filter:none !important;"></video>
         `;
       } else {
         container.innerHTML = `

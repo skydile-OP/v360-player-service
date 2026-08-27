@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <title>Weissdiamonds.com 360° Interactive Viewer</title>
-    <link href="css/vision360.css?v=12" rel="stylesheet" type="text/css" />
+    <link href="css/vision360.css?v=15" rel="stylesheet" type="text/css" />
     <script src="js/jquery.min.js"></script>
-    <script type="text/javascript" src="js/w.js?v=12"></script>
-    <script type="text/javascript" src="js/vision360.js?v=12"></script>
+    <script type="text/javascript" src="js/w.js?v=15"></script>
+    <script type="text/javascript" src="js/vision360.js?v=15"></script>
     <style>
         html, body {
             margin: 0;
@@ -23,14 +23,10 @@
             height: 100%;
             background-color: #ffffff !important;
         }
-        .V360-canvas, canvas {
+        .V360-canvas, canvas, video, img {
             filter: none !important;
             -webkit-filter: none !important;
             mix-blend-mode: normal !important;
-        }
-        video {
-            filter: contrast(1.22) brightness(0.70) saturate(0.80) hue-rotate(-4deg) !important;
-            -webkit-filter: contrast(1.22) brightness(0.70) saturate(0.80) hue-rotate(-4deg) !important;
         }
         #FixedWaterMark img, #watermark img, .watermarkImage {
             display: none !important;
@@ -67,21 +63,21 @@
                 watermarkLink: 'https://weissdiamonds.com',
                 otherLogoLink: 'https://weissdiamonds.com',
                 iconPath: '/image/',
-                iconPlay: '/image/play.png?v=12',
-                iconPause: '/image/pause.png?v=12',
-                iconNext: '/image/next.png?v=12',
-                iconPrev: '/image/prev.png?v=12',
-                iconReverse: '/image/reverse.png?v=12',
-                iconInfo: '/image/info.png?v=12',
-                iconGrey: '/image/grey.png?v=12',
-                iconZoom: '/image/zoom.png?v=12',
-                icon360: '/image/360.png?v=12',
-                iconFV: '/image/faceup.png?v=12',
-                iconFace: '/image/front.png?v=12',
-                iconRV: '/image/right.png?v=12',
-                iconBV: '/image/back.png?v=12',
-                iconLV: '/image/left.png?v=12',
-                iconAutoPlay: '/image/autoplay.png?v=12'
+                iconPlay: '/image/play.png?v=15',
+                iconPause: '/image/pause.png?v=15',
+                iconNext: '/image/next.png?v=15',
+                iconPrev: '/image/prev.png?v=15',
+                iconReverse: '/image/reverse.png?v=15',
+                iconInfo: '/image/info.png?v=15',
+                iconGrey: '/image/grey.png?v=15',
+                iconZoom: '/image/zoom.png?v=15',
+                icon360: '/image/360.png?v=15',
+                iconFV: '/image/faceup.png?v=15',
+                iconFace: '/image/front.png?v=15',
+                iconRV: '/image/right.png?v=15',
+                iconBV: '/image/back.png?v=15',
+                iconLV: '/image/left.png?v=15',
+                iconAutoPlay: '/image/autoplay.png?v=15'
             });
 
             // Enforce Weissdiamonds.com watermark branding
