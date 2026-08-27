@@ -24,7 +24,6 @@ if (!fs.existsSync(TEMP_UPLOAD_DIR)) {
   fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
 }
 
-// Case-insensitive directory lookup helper for Linux containers
 function findStoneDir(stoneId) {
   if (!stoneId) return null;
   if (!fs.existsSync(MEDIA_DIR)) return null;
@@ -55,11 +54,27 @@ const upload = multer({ storage });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/api/debug', (req, res) => {
+  try {
+    const mediaExists = fs.existsSync(MEDIA_DIR);
+    const items = mediaExists ? fs.readdirSync(MEDIA_DIR) : [];
+    const debugData = {};
+    items.forEach(i => {
+      const p = path.join(MEDIA_DIR, i);
+      if (fs.statSync(p).isDirectory()) {
+        debugData[i] = fs.readdirSync(p);
+      }
+    });
+    res.json({ MEDIA_DIR, mediaExists, items, debugData });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Serve exported standalone V360 HTML page if present (e.g. SE313.html)
 app.get('/vision360.html', (req, res) => {
   const stoneId = req.query.d;
   if (stoneId) {
@@ -90,7 +105,6 @@ app.get('/viewer.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'viewer.html'));
 });
 
-// V360 Asset Route (Case-insensitive)
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
@@ -156,7 +170,6 @@ function getStoneFrameInfo(stoneDir, stoneId) {
   return { frameCount, thumbnail, files, images, hasVideo, hasHtml };
 }
 
-// API: SKU Library List
 app.get('/api/items', (req, res) => {
   try {
     const items = fs.readdirSync(MEDIA_DIR).filter(item => {
@@ -195,7 +208,6 @@ app.get('/api/items', (req, res) => {
   }
 });
 
-// API: Item detail
 app.get('/api/items/:stoneId', (req, res) => {
   const { stoneId } = req.params;
   const stoneDir = findStoneDir(stoneId);
