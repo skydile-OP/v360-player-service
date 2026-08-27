@@ -317,7 +317,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 6px;
       transition: background 0.2s ease;
     }
     .btn-sm:hover {
@@ -615,19 +615,19 @@
                 </button>
               ` : ''}
               <div class="btn-group-sm">
-                <button class="btn-sm" onclick="copyToClipboard('${item.fullV360Url || item.v360Url}')">
+                <button class="btn-sm" onclick="copyDirectLink('${item.sku}')">
                   <i class="fa-solid fa-link"></i> Copy Link
                 </button>
-                <button class="btn-sm" onclick="copyToClipboard('${item.embedCode}')">
+                <button class="btn-sm" onclick="copyIframeCode('${item.sku}')">
                   <i class="fa-solid fa-code"></i> Iframe Code
                 </button>
               </div>
               <div class="btn-group-sm">
-                <button class="btn-sm" onclick="shareWhatsApp('${item.sku}', '${item.fullV360Url || item.v360Url}')">
+                <button class="btn-sm" onclick="shareWhatsApp('${item.sku}')">
                   <i class="fa-brands fa-whatsapp"></i> WhatsApp
                 </button>
                 <button class="btn-sm btn-delete" onclick="deleteItem('${item.sku}')">
-                  <i class="fa-solid fa-trash"></i>
+                  <i class="fa-solid fa-trash"></i> Delete
                 </button>
               </div>
             </div>
@@ -653,10 +653,10 @@
                   <i class="fa-solid fa-video"></i> Video
                 </button>
               ` : ''}
-              <button class="btn-sm" onclick="copyToClipboard('${item.fullV360Url || item.v360Url}')">
+              <button class="btn-sm" onclick="copyDirectLink('${item.sku}')">
                 <i class="fa-solid fa-link"></i> Copy Link
               </button>
-              <button class="btn-sm" onclick="copyToClipboard('${item.embedCode}')">
+              <button class="btn-sm" onclick="copyIframeCode('${item.sku}')">
                 <i class="fa-solid fa-code"></i> Embed Code
               </button>
               <button class="btn-sm btn-delete" onclick="deleteItem('${item.sku}')">
@@ -696,10 +696,27 @@
       document.getElementById('modalContainer').innerHTML = '<button class="modal-close" onclick="closeModal()">✕</button><iframe id="modalIframe" src=""></iframe>';
     }
 
-    function copyToClipboard(text) {
-      navigator.clipboard.writeText(text).then(() => {
-        showToast('Copied to clipboard!');
+    function copyDirectLink(sku) {
+      const baseUrl = window.location.origin;
+      const link = `${baseUrl}/vision360.html?d=${encodeURIComponent(sku)}`;
+      navigator.clipboard.writeText(link).then(() => {
+        showToast('Direct 360° link copied to clipboard!');
       });
+    }
+
+    function copyIframeCode(sku) {
+      const baseUrl = window.location.origin;
+      const code = `<iframe src="${baseUrl}/vision360.html?d=${encodeURIComponent(sku)}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`;
+      navigator.clipboard.writeText(code).then(() => {
+        showToast('Iframe embed code copied to clipboard!');
+      });
+    }
+
+    function shareWhatsApp(sku) {
+      const baseUrl = window.location.origin;
+      const url = `${baseUrl}/vision360.html?d=${encodeURIComponent(sku)}`;
+      const msg = encodeURIComponent(`Check out the 360° view of diamond ${sku}: ${url}`);
+      window.open(`https://wa.me/?text=${msg}`, '_blank');
     }
 
     function showToast(msg) {
@@ -707,11 +724,6 @@
       toast.textContent = msg;
       toast.style.display = 'block';
       setTimeout(() => toast.style.display = 'none', 2500);
-    }
-
-    function shareWhatsApp(sku, url) {
-      const msg = encodeURIComponent(`Check out the 360° view of diamond ${sku}: ${url}`);
-      window.open(`https://wa.me/?text=${msg}`, '_blank');
     }
 
     async function deleteItem(sku) {
