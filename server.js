@@ -24,6 +24,16 @@ if (!fs.existsSync(TEMP_UPLOAD_DIR)) {
   fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
 }
 
+// Case-insensitive directory lookup helper for Linux containers
+function findStoneDir(stoneId) {
+  if (!stoneId) return null;
+  if (!fs.existsSync(MEDIA_DIR)) return null;
+  const targetName = stoneId.trim().toLowerCase();
+  const items = fs.readdirSync(MEDIA_DIR);
+  const match = items.find(i => i.toLowerCase() === targetName);
+  return match ? path.join(MEDIA_DIR, match) : null;
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const isZip = file.originalname.toLowerCase().endsWith('.zip');
@@ -49,12 +59,12 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Serve exported standalone V360 HTML page if uploaded (e.g. SE313.html)
+// Serve exported standalone V360 HTML page if present (e.g. SE313.html)
 app.get('/vision360.html', (req, res) => {
   const stoneId = req.query.d;
   if (stoneId) {
-    const stoneDir = path.join(MEDIA_DIR, stoneId);
-    if (fs.existsSync(stoneDir)) {
+    const stoneDir = findStoneDir(stoneId);
+    if (stoneDir) {
       const files = fs.readdirSync(stoneDir);
       const standaloneHtml = files.find(f => f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html');
       if (standaloneHtml) {
@@ -68,8 +78,8 @@ app.get('/vision360.html', (req, res) => {
 app.get('/viewer.html', (req, res) => {
   const stoneId = req.query.d;
   if (stoneId) {
-    const stoneDir = path.join(MEDIA_DIR, stoneId);
-    if (fs.existsSync(stoneDir)) {
+    const stoneDir = findStoneDir(stoneId);
+    if (stoneDir) {
       const files = fs.readdirSync(stoneDir);
       const standaloneHtml = files.find(f => f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html');
       if (standaloneHtml) {
@@ -80,7 +90,7 @@ app.get('/viewer.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'viewer.html'));
 });
 
-// V360 Asset Route
+// V360 Asset Route (Case-insensitive)
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
@@ -89,9 +99,12 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
     return res.redirect(302, remoteUrl);
   }
 
-  const filePath = path.join(MEDIA_DIR, stoneId, filename);
-  if (fs.existsSync(filePath)) {
-    return res.sendFile(filePath);
+  const stoneDir = findStoneDir(stoneId);
+  if (stoneDir) {
+    const filePath = path.join(stoneDir, filename);
+    if (fs.existsSync(filePath)) {
+      return res.sendFile(filePath);
+    }
   }
 
   const samplePath = path.join(MEDIA_DIR, 'sample_item', filename);
@@ -185,9 +198,9 @@ app.get('/api/items', (req, res) => {
 // API: Item detail
 app.get('/api/items/:stoneId', (req, res) => {
   const { stoneId } = req.params;
-  const stoneDir = path.join(MEDIA_DIR, stoneId);
+  const stoneDir = findStoneDir(stoneId);
 
-  if (!fs.existsSync(stoneDir)) {
+  if (!stoneDir) {
     return res.status(404).json({ error: 'Stone not found' });
   }
 
@@ -210,9 +223,9 @@ app.get('/api/items/:stoneId', (req, res) => {
 
 app.delete('/api/items/:stoneId', (req, res) => {
   const { stoneId } = req.params;
-  const stoneDir = path.join(MEDIA_DIR, stoneId);
+  const stoneDir = findStoneDir(stoneId);
 
-  if (fs.existsSync(stoneDir)) {
+  if (stoneDir) {
     fs.rmSync(stoneDir, { recursive: true, force: true });
     return res.json({ success: true, message: `Deleted SKU ${stoneId}` });
   }
