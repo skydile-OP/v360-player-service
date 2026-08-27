@@ -49,22 +49,14 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// -------------------------------------------------------------
-// V360 Standalone Player Route
-// Serves the exact exported HTML viewer if present in SKU folder
-// -------------------------------------------------------------
+// Serve exported standalone V360 HTML page if uploaded (e.g. SE313.html)
 app.get('/vision360.html', (req, res) => {
   const stoneId = req.query.d;
   if (stoneId) {
     const stoneDir = path.join(MEDIA_DIR, stoneId);
     if (fs.existsSync(stoneDir)) {
       const files = fs.readdirSync(stoneDir);
-      // Find standalone HTML exported file (e.g., SE313.html)
-      const standaloneHtml = files.find(f => 
-        f.toLowerCase() === `${stoneId.toLowerCase()}.html` ||
-        (f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html')
-      );
-
+      const standaloneHtml = files.find(f => f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html');
       if (standaloneHtml) {
         return res.sendFile(path.join(stoneDir, standaloneHtml));
       }
@@ -73,18 +65,13 @@ app.get('/vision360.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
 });
 
-// Modern Responsive HTML5 Viewer Route
 app.get('/viewer.html', (req, res) => {
   const stoneId = req.query.d;
   if (stoneId) {
     const stoneDir = path.join(MEDIA_DIR, stoneId);
     if (fs.existsSync(stoneDir)) {
       const files = fs.readdirSync(stoneDir);
-      const standaloneHtml = files.find(f => 
-        f.toLowerCase() === `${stoneId.toLowerCase()}.html` ||
-        (f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html')
-      );
-
+      const standaloneHtml = files.find(f => f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html' && f.toLowerCase() !== 'viewer.html');
       if (standaloneHtml) {
         return res.sendFile(path.join(stoneDir, standaloneHtml));
       }
