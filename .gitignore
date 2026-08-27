@@ -4,5 +4,6 @@ node_modules/
 data/media/*
 !data/media/sample_item
 !data/media/SE313
+!data/media/PR048
 test_scan_folder/
 .DS_Store
