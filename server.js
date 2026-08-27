@@ -52,7 +52,11 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Serve static frontend assets & icon directories
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/css/images', express.static(path.join(__dirname, 'public', 'css', 'images')));
+app.use('/images', express.static(path.join(__dirname, 'public', 'images')));
+app.use('/image', express.static(path.join(__dirname, 'public', 'image')));
 
 app.get('/api/debug', (req, res) => {
   try {
@@ -75,6 +79,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Serve exported standalone V360 HTML page if present (e.g. SE313.html)
 app.get('/vision360.html', (req, res) => {
   const stoneId = req.query.d;
   if (stoneId) {
@@ -105,6 +110,7 @@ app.get('/viewer.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'viewer.html'));
 });
 
+// V360 Asset Route
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
