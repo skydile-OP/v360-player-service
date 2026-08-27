@@ -110,7 +110,7 @@ app.get('/viewer.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'viewer.html'));
 });
 
-// V360 Asset Route with automatic toolbar icon fallbacks
+// V360 Asset Route
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
@@ -128,15 +128,26 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
     }
   }
 
-  // 2. Automatic fallback for V360 toolbar icon requests prepended with surl (/imaged/:stoneId/:filename)
-  const iconPathPublic = path.join(__dirname, 'public', filename);
-  if (fs.existsSync(iconPathPublic)) {
-    return res.sendFile(iconPathPublic);
-  }
+  // 2. Automatic fallback for V360 toolbar icon requests
+  const dirsToSearch = [
+    path.join(__dirname, 'public'),
+    path.join(__dirname, 'public', 'css', 'images'),
+    path.join(__dirname, 'public', 'images')
+  ];
 
-  const iconPathCss = path.join(__dirname, 'public', 'css', 'images', filename);
-  if (fs.existsSync(iconPathCss)) {
-    return res.sendFile(iconPathCss);
+  const searchName = filename.toLowerCase().replace(/%20/g, ' ').replace(/\s+view/g, '').trim();
+
+  for (let d of dirsToSearch) {
+    if (fs.existsSync(d)) {
+      const files = fs.readdirSync(d);
+      const match = files.find(f => {
+        const fLower = f.toLowerCase();
+        return fLower === filename.toLowerCase() || fLower === searchName || fLower.includes(searchName.replace('.png', ''));
+      });
+      if (match) {
+        return res.sendFile(path.join(d, match));
+      }
+    }
   }
 
   // 3. Fallback to sample_item folder
@@ -146,6 +157,41 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
   }
 
   return res.status(404).json({ error: 'Asset not found', stoneId, filename });
+});
+
+// Wildcard Icon Fallback Middleware for Root & Nested Image Requests
+app.use((req, res, next) => {
+  const reqPath = req.path;
+  if (/\.(png|jpg|gif|svg)$/i.test(reqPath)) {
+    const filename = decodeURIComponent(path.basename(reqPath));
+    const searchName = filename.toLowerCase().replace(/\s+view/g, '').trim();
+
+    const dirsToSearch = [
+      path.join(__dirname, 'public'),
+      path.join(__dirname, 'public', 'css', 'images'),
+      path.join(__dirname, 'public', 'images')
+    ];
+
+    for (let d of dirsToSearch) {
+      if (fs.existsSync(d)) {
+        const files = fs.readdirSync(d);
+        const match = files.find(f => {
+          const fLower = f.toLowerCase();
+          return fLower === filename.toLowerCase() || fLower === searchName || fLower.includes(searchName.replace('.png', ''));
+        });
+        if (match) {
+          return res.sendFile(path.join(d, match));
+        }
+      }
+    }
+
+    // Default icon fallback so NO broken image box ever renders!
+    const defaultIcon = path.join(__dirname, 'public', '360.png');
+    if (fs.existsSync(defaultIcon)) {
+      return res.sendFile(defaultIcon);
+    }
+  }
+  next();
 });
 
 app.get('/embed/:stoneId', (req, res) => {
