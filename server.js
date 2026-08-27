@@ -110,7 +110,7 @@ app.get('/viewer.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'viewer.html'));
 });
 
-// V360 Asset Route
+// V360 Asset Route with automatic toolbar icon fallbacks
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
@@ -119,6 +119,7 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
     return res.redirect(302, remoteUrl);
   }
 
+  // 1. Check if specific file exists inside SKU media folder
   const stoneDir = findStoneDir(stoneId);
   if (stoneDir) {
     const filePath = path.join(stoneDir, filename);
@@ -127,6 +128,18 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
     }
   }
 
+  // 2. Automatic fallback for V360 toolbar icon requests prepended with surl (/imaged/:stoneId/:filename)
+  const iconPathPublic = path.join(__dirname, 'public', filename);
+  if (fs.existsSync(iconPathPublic)) {
+    return res.sendFile(iconPathPublic);
+  }
+
+  const iconPathCss = path.join(__dirname, 'public', 'css', 'images', filename);
+  if (fs.existsSync(iconPathCss)) {
+    return res.sendFile(iconPathCss);
+  }
+
+  // 3. Fallback to sample_item folder
   const samplePath = path.join(MEDIA_DIR, 'sample_item', filename);
   if (fs.existsSync(samplePath)) {
     return res.sendFile(samplePath);
