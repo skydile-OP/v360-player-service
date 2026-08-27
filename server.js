@@ -14,6 +14,18 @@ app.enable('trust proxy');
 app.use(cors());
 app.use(express.json());
 
+// Smart Fail-Safe URL Handler: If someone pastes an iframe snippet into the browser URL bar, extract SKU and redirect directly!
+app.use((req, res, next) => {
+  const decodedUrl = decodeURIComponent(req.url);
+  if (decodedUrl.includes('<iframe') || decodedUrl.includes('vision360.html?d=')) {
+    const match = decodedUrl.match(/d=([a-zA-Z0-9_-]+)/);
+    if (match && match[1]) {
+      return res.redirect(302, `/vision360.html?d=${encodeURIComponent(match[1])}`);
+    }
+  }
+  next();
+});
+
 // Prevent browser caching of 404s or stale image states
 app.use((req, res, next) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

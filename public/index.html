@@ -615,11 +615,11 @@
                 </button>
               ` : ''}
               <div class="btn-group-sm">
-                <button class="btn-sm" onclick="copyDirectLink('${item.sku}')">
-                  <i class="fa-solid fa-link"></i> Copy Link
+                <button class="btn-sm" onclick="copyDirectLink('${item.sku}')" title="Copy web address to open directly in browser">
+                  <i class="fa-solid fa-link"></i> Copy Direct Link
                 </button>
-                <button class="btn-sm" onclick="copyIframeCode('${item.sku}')">
-                  <i class="fa-solid fa-code"></i> Iframe Code
+                <button class="btn-sm" onclick="copyIframeCode('${item.sku}')" title="Copy HTML code to embed inside website">
+                  <i class="fa-solid fa-code"></i> Embed Code
                 </button>
               </div>
               <div class="btn-group-sm">
@@ -654,7 +654,7 @@
                 </button>
               ` : ''}
               <button class="btn-sm" onclick="copyDirectLink('${item.sku}')">
-                <i class="fa-solid fa-link"></i> Copy Link
+                <i class="fa-solid fa-link"></i> Copy Direct Link
               </button>
               <button class="btn-sm" onclick="copyIframeCode('${item.sku}')">
                 <i class="fa-solid fa-code"></i> Embed Code
@@ -700,7 +700,7 @@
       const baseUrl = window.location.origin;
       const link = `${baseUrl}/vision360.html?d=${encodeURIComponent(sku)}`;
       navigator.clipboard.writeText(link).then(() => {
-        showToast('Direct 360° link copied to clipboard!');
+        showToast('🔗 Direct 360° URL copied! Paste in browser address bar to view.');
       });
     }
 
@@ -708,7 +708,7 @@
       const baseUrl = window.location.origin;
       const code = `<iframe src="${baseUrl}/vision360.html?d=${encodeURIComponent(sku)}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`;
       navigator.clipboard.writeText(code).then(() => {
-        showToast('Iframe embed code copied to clipboard!');
+        showToast('💻 Website HTML Embed Code copied! Paste into website code.');
       });
     }
 
@@ -723,7 +723,7 @@
       const toast = document.getElementById('toast');
       toast.textContent = msg;
       toast.style.display = 'block';
-      setTimeout(() => toast.style.display = 'none', 2500);
+      setTimeout(() => toast.style.display = 'none', 3000);
     }
 
     async function deleteItem(sku) {
