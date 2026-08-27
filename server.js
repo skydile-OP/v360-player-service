@@ -6,6 +6,8 @@ const multer = require('multer');
 const AdmZip = require('adm-zip');
 require('dotenv').config();
 
+const db = require('./db');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -89,7 +91,13 @@ app.get('/api/debug', (req, res) => {
         debugData[i] = fs.readdirSync(p);
       }
     });
-    res.json({ MEDIA_DIR, mediaExists, items, debugData });
+    res.json({ 
+      MEDIA_DIR, 
+      mediaExists, 
+      items, 
+      dbConnected: db.isConnected,
+      debugData 
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -235,45 +243,80 @@ function getStoneFrameInfo(stoneDir, stoneId) {
   return { frameCount, thumbnail, files, images, hasVideo, hasHtml };
 }
 
-app.get('/api/items', (req, res) => {
+function scanDiskItems(baseUrl) {
+  const items = fs.readdirSync(MEDIA_DIR).filter(item => {
+    return item !== 'temp_uploads' && fs.statSync(path.join(MEDIA_DIR, item)).isDirectory();
+  });
+  return items.map(stoneId => {
+    const stoneDir = path.join(MEDIA_DIR, stoneId);
+    const stats = fs.statSync(stoneDir);
+    const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(stoneDir, stoneId);
+
+    return {
+      stoneId,
+      sku: stoneId,
+      frameCount,
+      thumbnail,
+      hasVideo,
+      hasHtml,
+      videoUrl: hasVideo ? `/imaged/${stoneId}/video.mp4` : null,
+      createdAt: stats.mtime.toISOString(),
+      v360Url: `/vision360.html?d=${stoneId}`,
+      modernUrl: `/viewer.html?d=${stoneId}`,
+      fullV360Url: `${baseUrl}/vision360.html?d=${stoneId}`,
+      fullModernUrl: `${baseUrl}/viewer.html?d=${stoneId}`,
+      embedCode: `<iframe src="${baseUrl}/vision360.html?d=${stoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
+    };
+  });
+}
+
+async function syncDiskItemsToDb(baseUrl) {
+  if (!db.isConnected) return;
+  const diskItems = scanDiskItems(baseUrl);
+  for (let item of diskItems) {
+    await db.upsertSku(item);
+  }
+  console.log(`[DB] Synced ${diskItems.length} SKU(s) from disk into PostgreSQL.`);
+}
+
+app.get('/api/items', async (req, res) => {
   try {
-    const items = fs.readdirSync(MEDIA_DIR).filter(item => {
-      return item !== 'temp_uploads' && fs.statSync(path.join(MEDIA_DIR, item)).isDirectory();
-    });
-    
     const hostHeader = req.get('host');
     const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
     const baseUrl = `${proto}://${hostHeader}`;
 
-    const itemList = items.map(stoneId => {
-      const stoneDir = path.join(MEDIA_DIR, stoneId);
-      const stats = fs.statSync(stoneDir);
-      const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(stoneDir, stoneId);
+    // 1. Try PostgreSQL Database
+    if (db.isConnected) {
+      const dbRows = await db.getAllSkus();
+      if (dbRows && dbRows.length > 0) {
+        const itemList = dbRows.map(r => ({
+          stoneId: r.sku,
+          sku: r.sku,
+          frameCount: r.frame_count,
+          thumbnail: r.thumbnail_url,
+          hasVideo: r.has_video,
+          hasHtml: r.has_html,
+          videoUrl: r.video_url,
+          createdAt: r.created_at,
+          v360Url: r.v360_url || `/vision360.html?d=${r.sku}`,
+          modernUrl: r.modern_url || `/viewer.html?d=${r.sku}`,
+          fullV360Url: `${baseUrl}/vision360.html?d=${r.sku}`,
+          fullModernUrl: `${baseUrl}/viewer.html?d=${r.sku}`,
+          embedCode: `<iframe src="${baseUrl}/vision360.html?d=${r.sku}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
+        }));
+        return res.json({ count: itemList.length, source: 'postgresql', items: itemList });
+      }
+    }
 
-      return {
-        stoneId,
-        sku: stoneId,
-        frameCount,
-        thumbnail,
-        hasVideo,
-        hasHtml,
-        videoUrl: hasVideo ? `/imaged/${stoneId}/video.mp4` : null,
-        createdAt: stats.mtime.toISOString(),
-        v360Url: `/vision360.html?d=${stoneId}`,
-        modernUrl: `/viewer.html?d=${stoneId}`,
-        fullV360Url: `${baseUrl}/vision360.html?d=${stoneId}`,
-        fullModernUrl: `${baseUrl}/viewer.html?d=${stoneId}`,
-        embedCode: `<iframe src="${baseUrl}/vision360.html?d=${stoneId}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
-      };
-    });
-
-    res.json({ count: itemList.length, items: itemList });
+    // 2. Filesystem Fallback Mode
+    const itemList = scanDiskItems(baseUrl);
+    res.json({ count: itemList.length, source: 'filesystem', items: itemList });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/items/:stoneId', (req, res) => {
+app.get('/api/items/:stoneId', async (req, res) => {
   const { stoneId } = req.params;
   const stoneDir = findStoneDir(stoneId);
 
@@ -298,18 +341,21 @@ app.get('/api/items/:stoneId', (req, res) => {
   });
 });
 
-app.delete('/api/items/:stoneId', (req, res) => {
+app.delete('/api/items/:stoneId', async (req, res) => {
   const { stoneId } = req.params;
   const stoneDir = findStoneDir(stoneId);
 
   if (stoneDir) {
     fs.rmSync(stoneDir, { recursive: true, force: true });
+    if (db.isConnected) {
+      await db.deleteSku(stoneId);
+    }
     return res.json({ success: true, message: `Deleted SKU ${stoneId}` });
   }
   res.status(404).json({ error: 'SKU not found' });
 });
 
-app.post('/api/upload-zip', upload.single('file'), (req, res) => {
+app.post('/api/upload-zip', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No ZIP file uploaded' });
   }
@@ -355,6 +401,25 @@ app.post('/api/upload-zip', upload.single('file'), (req, res) => {
     const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
     const baseUrl = `${proto}://${hostHeader}`;
 
+    const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(extractDir, targetStoneId);
+
+    const skuRecord = {
+      sku: targetStoneId,
+      stoneId: targetStoneId,
+      frameCount,
+      hasVideo,
+      hasHtml,
+      thumbnail,
+      v360Url: `/vision360.html?d=${targetStoneId}`,
+      modernUrl: `/viewer.html?d=${targetStoneId}`,
+      videoUrl: hasVideo ? `/imaged/${targetStoneId}/video.mp4` : null,
+      createdAt: new Date()
+    };
+
+    if (db.isConnected) {
+      await db.upsertSku(skuRecord);
+    }
+
     res.json({
       success: true,
       stoneId: targetStoneId,
@@ -370,7 +435,7 @@ app.post('/api/upload-zip', upload.single('file'), (req, res) => {
   }
 });
 
-app.post('/api/upload', upload.array('files'), (req, res) => {
+app.post('/api/upload', upload.array('files'), async (req, res) => {
   const stoneId = req.body.stoneId || req.query.stoneId;
   if (!stoneId) {
     return res.status(400).json({ error: 'Missing stoneId/SKU parameter' });
@@ -379,6 +444,26 @@ app.post('/api/upload', upload.array('files'), (req, res) => {
   const hostHeader = req.get('host');
   const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
   const baseUrl = `${proto}://${hostHeader}`;
+
+  const stoneDir = findStoneDir(stoneId);
+  if (stoneDir) {
+    const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(stoneDir, stoneId);
+    const skuRecord = {
+      sku: stoneId,
+      stoneId,
+      frameCount,
+      hasVideo,
+      hasHtml,
+      thumbnail,
+      v360Url: `/vision360.html?d=${stoneId}`,
+      modernUrl: `/viewer.html?d=${stoneId}`,
+      videoUrl: hasVideo ? `/imaged/${stoneId}/video.mp4` : null,
+      createdAt: new Date()
+    };
+    if (db.isConnected) {
+      await db.upsertSku(skuRecord);
+    }
+  }
 
   res.json({
     success: true,
@@ -391,12 +476,21 @@ app.post('/api/upload', upload.array('files'), (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    dbConnected: db.isConnected,
+    timestamp: new Date().toISOString() 
+  });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`=================================================`);
   console.log(` V360 Standalone Player & Dashboard Service Running`);
   console.log(` Listening on port: ${PORT}`);
   console.log(`=================================================`);
+
+  const dbOk = await db.init();
+  if (dbOk) {
+    await syncDiskItemsToDb('https://perpetual-harmony-production-451e.up.railway.app');
+  }
 });
