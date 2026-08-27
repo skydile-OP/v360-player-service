@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>360° Diamond & Jewelry Interactive Viewer</title>
+  <title>360° Ultra-HD Diamond & Jewelry Viewer</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     * {
       box-sizing: border-box;
@@ -27,7 +28,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background: radial-gradient(circle, #1a2336 0%, #080c14 100%);
+      background: radial-gradient(circle at center, #1a2336 0%, #080c14 100%);
       cursor: grab;
     }
     #container:active {
@@ -38,20 +39,59 @@
       max-height: 100%;
       object-fit: contain;
     }
-    .controls {
+    
+    /* Top Header Bar */
+    .top-bar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+    .stone-tag {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(8px);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+    .quality-badge {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    /* Bottom Control Bar */
+    .controls-panel {
       position: absolute;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 12px;
-      background: rgba(15, 23, 42, 0.75);
-      backdrop-filter: blur(8px);
-      padding: 8px 16px;
-      border-radius: 30px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      align-items: center;
+      gap: 16px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      padding: 8px 20px;
+      border-radius: 40px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
       z-index: 10;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+    }
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .btn {
       background: transparent;
@@ -64,7 +104,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      font-size: 16px;
       transition: all 0.2s ease;
     }
     .btn:hover {
@@ -73,8 +113,31 @@
     }
     .btn.active {
       color: #38bdf8;
-      background: rgba(56, 189, 248, 0.15);
+      background: rgba(56, 189, 248, 0.2);
     }
+
+    /* Speed Control Slider */
+    .speed-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 0 12px;
+    }
+    .speed-label {
+      font-size: 12px;
+      color: #94a3b8;
+      font-weight: 500;
+      min-width: 45px;
+    }
+    .speed-slider {
+      width: 80px;
+      accent-color: #38bdf8;
+      cursor: pointer;
+    }
+
+    /* Loader Overlay */
     .loader-overlay {
       position: absolute;
       top: 0;
@@ -90,70 +153,73 @@
       transition: opacity 0.4s ease;
     }
     .spinner {
-      width: 48px;
-      height: 48px;
-      border: 4px solid rgba(56, 189, 248, 0.2);
+      width: 52px;
+      height: 52px;
+      border: 4px solid rgba(56, 189, 248, 0.15);
       border-top-color: #38bdf8;
       border-radius: 50%;
-      animation: spin 1s infinite linear;
+      animation: spin 0.9s infinite linear;
     }
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
     .progress-text {
-      margin-top: 16px;
+      margin-top: 18px;
       font-size: 14px;
       color: #94a3b8;
-    }
-    .stone-tag {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      background: rgba(15, 23, 42, 0.6);
-      backdrop-filter: blur(8px);
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
       font-weight: 500;
-      color: #e2e8f0;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      z-index: 10;
     }
   </style>
 </head>
 <body>
 
   <div id="container">
-    <div class="stone-tag" id="stoneTag">ID: ---</div>
-    
+    <div class="top-bar">
+      <div class="stone-tag" id="stoneTag">SKU: ---</div>
+      <div class="quality-badge" id="qualityBadge">Full HD 1080p</div>
+    </div>
+
     <div class="loader-overlay" id="loader">
       <div class="spinner"></div>
-      <div class="progress-text" id="progressText">Loading 360° View... 0%</div>
+      <div class="progress-text" id="progressText">Loading HD 360° Frames... 0%</div>
     </div>
 
     <canvas id="canvas"></canvas>
 
-    <div class="controls">
-      <button class="btn" id="btnPrev" title="Rotate Left">◀</button>
-      <button class="btn" id="btnPlay" title="Auto Rotate">▶</button>
-      <button class="btn" id="btnNext" title="Rotate Right">▶</button>
-      <button class="btn" id="btnZoomIn" title="Zoom In">+</button>
-      <button class="btn" id="btnZoomOut" title="Zoom Out">-</button>
-      <button class="btn" id="btnReset" title="Reset View">↺</button>
+    <div class="controls-panel">
+      <div class="btn-group">
+        <button class="btn" id="btnPrev" title="Rotate Left (Step)"><i class="fa-solid fa-chevron-left"></i></button>
+        <button class="btn active" id="btnPlay" title="Play / Pause Auto-Rotate"><i class="fa-solid fa-pause"></i></button>
+        <button class="btn" id="btnNext" title="Rotate Right (Step)"><i class="fa-solid fa-chevron-right"></i></button>
+      </div>
+
+      <div class="speed-control">
+        <i class="fa-solid fa-gauge-high" style="color:#94a3b8; font-size:13px;"></i>
+        <input type="range" class="speed-slider" id="speedSlider" min="40" max="300" step="10" value="140" title="Adjust Spin Speed">
+        <span class="speed-label" id="speedValue">1.0x Speed</span>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn" id="btnZoomIn" title="Zoom In (+)"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+        <button class="btn" id="btnZoomOut" title="Zoom Out (-)"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+        <button class="btn" id="btnReset" title="Reset View"><i class="fa-solid fa-rotate-right"></i></button>
+      </div>
     </div>
   </div>
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const stoneId = urlParams.get('d') || 'sample_item';
-    document.getElementById('stoneTag').textContent = `Stone ID: ${stoneId}`;
+    document.getElementById('stoneTag').textContent = `SKU: ${stoneId}`;
 
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const loader = document.getElementById('loader');
     const progressText = document.getElementById('progressText');
     const container = document.getElementById('container');
+    const speedSlider = document.getElementById('speedSlider');
+    const speedValue = document.getElementById('speedValue');
 
     let images = [];
     let currentFrame = 0;
@@ -163,10 +229,13 @@
     let resumeTimeout = null;
     let scale = 1;
     let panX = 0, panY = 0;
+    let currentIntervalMs = 140;
 
     async function loadStone() {
-      const jsonFiles = ['1.json', 'sm.json', '2.json', '0.json'];
-      for (let jf of jsonFiles) {
+      // Prioritize High-Resolution JSON frame arrays (8.json -> 7.json -> 6.json -> 5.json -> 4.json -> 1.json)
+      const jsonPriorityList = ['8.json', '7.json', '6.json', '5.json', '4.json', '3.json', '2.json', '1.json', 'sm.json', '0.json'];
+      
+      for (let jf of jsonPriorityList) {
         try {
           const res = await fetch(`/imaged/${stoneId}/${jf}`);
           if (res.ok) {
@@ -179,15 +248,17 @@
             }
 
             if (base64List.length > 0) {
+              document.getElementById('qualityBadge').textContent = `HD 360° (${base64List.length} Frames)`;
               await loadBase64Images(base64List);
               return;
             }
           }
         } catch (e) {
-          console.log(`Check ${jf} failed...`);
+          console.log(`Checking ${jf}...`);
         }
       }
 
+      // Check API for custom JPEGs
       try {
         const res = await fetch(`/api/items/${stoneId}`);
         if (res.ok) {
@@ -197,9 +268,7 @@
             return;
           }
         }
-      } catch (e) {
-        console.warn('API lookup failed, falling back to standard sequence probing');
-      }
+      } catch (e) {}
 
       await loadImagesStandard();
     }
@@ -217,7 +286,7 @@
         img.src = src;
         img.onload = () => {
           loaded++;
-          progressText.textContent = `Loading 360° View... ${Math.round((loaded / base64Arr.length) * 100)}%`;
+          progressText.textContent = `Loading High-Res 360° View... ${Math.round((loaded / base64Arr.length) * 100)}%`;
           if (loaded === base64Arr.length) initViewer();
         };
         img.onerror = () => {
@@ -237,7 +306,7 @@
         img.src = `/imaged/${stoneId}/${fileList[i]}`;
         img.onload = () => {
           loaded++;
-          progressText.textContent = `Loading 360° View... ${Math.round((loaded / fileList.length) * 100)}%`;
+          progressText.textContent = `Loading High-Res 360° View... ${Math.round((loaded / fileList.length) * 100)}%`;
           if (loaded === fileList.length) initViewer();
         };
         img.onerror = () => {
@@ -275,27 +344,28 @@
       setTimeout(() => loader.style.display = 'none', 400);
       resizeCanvas();
       render();
-      
-      // Auto-start slow elegant rotation on load
       startAutoPlay();
     }
 
     function startAutoPlay() {
-      if (autoPlayInterval) return;
+      if (autoPlayInterval) clearInterval(autoPlayInterval);
+      const btnPlay = document.getElementById('btnPlay');
       btnPlay.classList.add('active');
-      btnPlay.textContent = '⏸';
+      btnPlay.innerHTML = '<i class="fa-solid fa-pause"></i>';
+      
       autoPlayInterval = setInterval(() => {
         currentFrame = (currentFrame + 1) % images.length;
         render();
-      }, 140); // 140ms per frame = slow, realistic rotation speed
+      }, currentIntervalMs);
     }
 
     function stopAutoPlay() {
       if (autoPlayInterval) {
         clearInterval(autoPlayInterval);
         autoPlayInterval = null;
+        const btnPlay = document.getElementById('btnPlay');
         btnPlay.classList.remove('active');
-        btnPlay.textContent = '▶';
+        btnPlay.innerHTML = '<i class="fa-solid fa-play"></i>';
       }
       if (resumeTimeout) {
         clearTimeout(resumeTimeout);
@@ -307,7 +377,7 @@
       if (resumeTimeout) clearTimeout(resumeTimeout);
       resumeTimeout = setTimeout(() => {
         startAutoPlay();
-      }, 2000);
+      }, 2500);
     }
 
     function resizeCanvas() {
@@ -341,7 +411,19 @@
       ctx.drawImage(img, x, y, drawW, drawH);
     }
 
-    // Drag Interactions
+    // Speed Slider Adjustment
+    speedSlider.addEventListener('input', (e) => {
+      // Inverse scale: lower ms = faster rotation
+      currentIntervalMs = 340 - parseInt(e.target.value);
+      const speedMultiplier = (140 / currentIntervalMs).toFixed(1);
+      speedValue.textContent = `${speedMultiplier}x Speed`;
+
+      if (autoPlayInterval) {
+        startAutoPlay();
+      }
+    });
+
+    // Touch & Mouse Drag Interaction
     container.addEventListener('mousedown', (e) => {
       isDragging = true;
       startX = e.clientX;
@@ -351,7 +433,7 @@
     window.addEventListener('mousemove', (e) => {
       if (!isDragging || images.length === 0) return;
       const deltaX = e.clientX - startX;
-      const sensitivity = 8;
+      const sensitivity = 6;
       
       if (Math.abs(deltaX) > sensitivity) {
         if (deltaX > 0) {
@@ -371,7 +453,6 @@
       }
     });
 
-    // Touch Interactions
     container.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
         isDragging = true;
@@ -383,7 +464,7 @@
     container.addEventListener('touchmove', (e) => {
       if (!isDragging || e.touches.length !== 1) return;
       const deltaX = e.touches[0].clientX - startX;
-      const sensitivity = 8;
+      const sensitivity = 6;
       if (Math.abs(deltaX) > sensitivity) {
         if (deltaX > 0) {
           currentFrame = (currentFrame - 1 + images.length) % images.length;
@@ -402,7 +483,7 @@
       }
     });
 
-    // Controls
+    // Control Buttons
     document.getElementById('btnPrev').addEventListener('click', () => {
       stopAutoPlay();
       currentFrame = (currentFrame - 1 + images.length) % images.length;
@@ -417,8 +498,7 @@
       scheduleAutoResume();
     });
 
-    const btnPlay = document.getElementById('btnPlay');
-    btnPlay.addEventListener('click', () => {
+    document.getElementById('btnPlay').addEventListener('click', () => {
       if (autoPlayInterval) {
         stopAutoPlay();
       } else {
@@ -427,12 +507,12 @@
     });
 
     document.getElementById('btnZoomIn').addEventListener('click', () => {
-      scale = Math.min(scale * 1.25, 4);
+      scale = Math.min(scale * 1.3, 4);
       render();
     });
 
     document.getElementById('btnZoomOut').addEventListener('click', () => {
-      scale = Math.max(scale / 1.25, 1);
+      scale = Math.max(scale / 1.3, 1);
       if (scale === 1) { panX = 0; panY = 0; }
       render();
     });
