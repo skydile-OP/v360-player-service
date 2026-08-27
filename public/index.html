@@ -875,7 +875,7 @@
         if (res.ok && data.success) {
           uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully uploaded SKU '${folderName}'!`;
           showToast(`SKU '${folderName}' uploaded!`);
-          fetchItems();
+          await fetchItems();
         }
       } catch (err) {
         if (err.name === 'AbortError') {
@@ -910,7 +910,7 @@
           if (res.ok && data.success) {
             uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Created 360° SKU '${data.sku}'!`;
             showToast(`SKU '${data.sku}' created!`);
-            fetchItems();
+            await fetchItems();
           }
         } catch (err) {
           if (err.name === 'AbortError') {
@@ -933,10 +933,8 @@
         
         let sku = 'unclassified';
         if (parts.length >= 3) {
-          // Master directory selected (parts[0]=v360_data, parts[1]=SKU_ID, parts[2]=file.json)
           sku = parts[1];
         } else if (parts.length === 2) {
-          // Single SKU folder selected (parts[0]=SKU_ID, parts[1]=file.json)
           sku = parts[0];
         } else {
           sku = 'unclassified';
@@ -947,25 +945,27 @@
       }
 
       const detectedSkus = Object.keys(skuGroups).filter(k => k !== 'unclassified');
-      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Found ${detectedSkus.length} SKU subfolder(s). Checking PostgreSQL database...`;
+      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Found ${detectedSkus.length} SKU subfolder(s). Checking database...`;
 
       await fetchItems();
       const existingSkus = new Set(rawItems.map(i => (i.sku || i.stoneId).toLowerCase()));
       const newSkus = detectedSkus.filter(sku => !existingSkus.has(sku.toLowerCase()));
 
       if (newSkus.length === 0) {
-        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> All ${detectedSkus.length} SKU subfolder(s) already exist in PostgreSQL! No missing SKUs to upload.`;
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> All ${detectedSkus.length} SKU subfolder(s) already exist in database! No missing SKUs to upload.`;
         btnAbortUpload.style.display = 'none';
-        showToast('All SKUs up to date in PostgreSQL!');
+        showToast('All SKUs up to date in database!');
         return;
       }
 
       let completed = 0;
+      let successCount = 0;
+
       for (let sku of newSkus) {
         if (!currentAbortController || currentAbortController.signal.aborted) break;
 
         completed++;
-        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading SKU ${completed} of ${newSkus.length}: '${sku}' to PostgreSQL...`;
+        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading SKU ${completed} of ${newSkus.length}: '${sku}' (${skuGroups[sku].length} files)...`;
 
         const formData = new FormData();
         formData.append('stoneId', sku);
@@ -974,11 +974,20 @@
         });
 
         try {
-          await fetch(`/api/upload?stoneId=${encodeURIComponent(sku)}`, {
+          const res = await fetch(`/api/upload?stoneId=${encodeURIComponent(sku)}`, {
             method: 'POST',
             body: formData,
             signal: currentAbortController.signal
           });
+          
+          if (res.ok) {
+            successCount++;
+            showToast(`✅ Uploaded SKU '${sku}'! (${completed}/${newSkus.length})`);
+            // 🌟 IMMEDIATELY REFRESH GALLERY SO NEW SKU CARD APPEARS ON SCREEN INSTANTLY!
+            await fetchItems();
+          } else {
+            console.warn(`Upload SKU '${sku}' returned status ${res.status}`);
+          }
         } catch (err) {
           if (err.name === 'AbortError') {
             console.log('Upload aborted by user');
@@ -990,9 +999,9 @@
 
       btnAbortUpload.style.display = 'none';
       if (currentAbortController && !currentAbortController.signal.aborted) {
-        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully uploaded ${newSkus.length} new SKU(s) to PostgreSQL!`;
-        showToast(`Synced ${newSkus.length} new SKUs to PostgreSQL!`);
-        fetchItems();
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully uploaded ${successCount} new SKU(s) to gallery!`;
+        showToast(`Synced ${successCount} new SKUs!`);
+        await fetchItems();
       }
     }
 

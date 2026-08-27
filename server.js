@@ -14,7 +14,8 @@ const PORT = process.env.PORT || 3000;
 app.enable('trust proxy');
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // Smart Fail-Safe URL Handler: ONLY redirect if an iframe HTML tag is present in the requested URL path
 app.use((req, res, next) => {
@@ -72,7 +73,10 @@ const storage = multer.diskStorage({
     cb(null, file.originalname);
   }
 });
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 150 * 1024 * 1024 } // 150MB per file limit
+});
 
 // Serve static frontend assets & icon directories
 app.use(express.static(path.join(__dirname, 'public')));
@@ -157,12 +161,6 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
     }
   }
 
-  // 3. Fallback to sample_item folder
-  const samplePath = path.join(MEDIA_DIR, 'sample_item', filename);
-  if (fs.existsSync(samplePath)) {
-    return res.sendFile(samplePath);
-  }
-
   return res.status(404).json({ error: 'Asset not found', stoneId, filename });
 });
 
@@ -217,7 +215,7 @@ function getStoneFrameInfo(stoneDir, stoneId) {
   let hasVideo = files.includes('video.mp4');
   let hasHtml = files.some(f => f.toLowerCase().endsWith('.html') && f.toLowerCase() !== 'vision360.html');
 
-  for (let jsonFile of ['1.json', 'sm.json', '2.json', '8.json']) {
+  for (let jsonFile of ['1.json', 'sm.json', '2.json', '8.json', '0.json']) {
     const jPath = path.join(stoneDir, jsonFile);
     if (fs.existsSync(jPath)) {
       try {
@@ -245,7 +243,7 @@ function getStoneFrameInfo(stoneDir, stoneId) {
 
 function scanDiskItems(baseUrl) {
   const items = fs.readdirSync(MEDIA_DIR).filter(item => {
-    return item !== 'temp_uploads' && fs.statSync(path.join(MEDIA_DIR, item)).isDirectory();
+    return item !== 'temp_uploads' && item !== 'sample_item' && fs.statSync(path.join(MEDIA_DIR, item)).isDirectory();
   });
   return items.map(stoneId => {
     const stoneDir = path.join(MEDIA_DIR, stoneId);
@@ -347,12 +345,11 @@ app.delete('/api/items/:stoneId', async (req, res) => {
 
   if (stoneDir) {
     fs.rmSync(stoneDir, { recursive: true, force: true });
-    if (db.isConnected) {
-      await db.deleteSku(stoneId);
-    }
-    return res.json({ success: true, message: `Deleted SKU ${stoneId}` });
   }
-  res.status(404).json({ error: 'SKU not found' });
+  if (db.isConnected) {
+    await db.deleteSku(stoneId);
+  }
+  res.json({ success: true, message: `Deleted SKU ${stoneId}` });
 });
 
 app.post('/api/upload-zip', upload.single('file'), async (req, res) => {
