@@ -121,6 +121,14 @@
     .btn-sync-refresh:hover {
       background: #059669;
     }
+    .btn-abort-upload {
+      background: #ef4444;
+      color: #fff;
+      display: none;
+    }
+    .btn-abort-upload:hover {
+      background: #dc2626;
+    }
     #folderInput, #fileInput {
       display: none;
     }
@@ -435,11 +443,10 @@
   </nav>
 
   <div class="container">
-    <!-- Web Upload Card with Bulk Local Folder Sync Button -->
     <div class="upload-card" id="dropZone">
       <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
       <div class="upload-title" id="uploadStatus">Bulk Local Folder Sync & Upload</div>
-      <div class="upload-subtitle">Drag & drop your entire <code style="color:#38bdf8;">E:\vision360_data</code> folder or select scan directories</div>
+      <div class="upload-subtitle">Drag & drop your scan directory (e.g. <code style="color:#38bdf8;">E:\vision360_data</code>)</div>
       
       <div class="btn-group-upload">
         <button class="btn-upload btn-sync-refresh" type="button" onclick="document.getElementById('folderInput').click()">
@@ -448,13 +455,15 @@
         <button class="btn-upload btn-upload-sec" type="button" onclick="document.getElementById('fileInput').click()">
           <i class="fa-solid fa-file-zipper"></i> Upload ZIP / Files
         </button>
+        <button class="btn-upload btn-abort-upload" id="btnAbortUpload" type="button" onclick="cancelUpload()">
+          <i class="fa-solid fa-circle-stop"></i> 🛑 Stop / Abort Upload
+        </button>
       </div>
 
       <input type="file" id="folderInput" webkitdirectory directory multiple>
       <input type="file" id="fileInput" multiple accept=".zip,.jpg,.jpeg,.png,.webp,.json,.mp4,.html">
     </div>
 
-    <!-- Controls Bar -->
     <div class="controls-bar">
       <div class="search-box">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -480,14 +489,12 @@
       </div>
     </div>
 
-    <!-- Items Grid Gallery -->
     <div class="grid" id="itemsGrid">
       <div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 40px;">
         Loading 360° SKU Library...
       </div>
     </div>
 
-    <!-- Items Table List View -->
     <div class="table-wrapper" id="itemsTableWrapper">
       <table>
         <thead>
@@ -504,7 +511,6 @@
     </div>
   </div>
 
-  <!-- Interactive Viewer Modal -->
   <div class="modal" id="viewerModal">
     <div class="modal-content" id="modalContainer">
       <button class="modal-close" onclick="closeModal()">✕</button>
@@ -517,6 +523,7 @@
   <script>
     let rawItems = [];
     let currentViewMode = 'grid';
+    let currentAbortController = null;
 
     async function fetchItems() {
       try {
@@ -712,6 +719,17 @@
       }
     }
 
+    function cancelUpload() {
+      if (currentAbortController) {
+        currentAbortController.abort();
+        currentAbortController = null;
+        document.getElementById('btnAbortUpload').style.display = 'none';
+        const uploadStatus = document.getElementById('uploadStatus');
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-xmark" style="color:#ef4444;"></i> Upload stopped / aborted by user.`;
+        showToast('Upload stopped!');
+      }
+    }
+
     const dropZone = document.getElementById('dropZone');
     const folderInput = document.getElementById('folderInput');
     const fileInput = document.getElementById('fileInput');
@@ -771,33 +789,43 @@
       }
     });
 
-    // Intelligent Bulk Sync & Upload
     async function processBulkFolderOrFiles(fileList) {
       const uploadStatus = document.getElementById('uploadStatus');
+      const btnAbortUpload = document.getElementById('btnAbortUpload');
 
-      // 1. Single ZIP file upload
+      currentAbortController = new AbortController();
+      btnAbortUpload.style.display = 'inline-flex';
+
       if (fileList.length === 1 && fileList[0].name.toLowerCase().endsWith('.zip')) {
         uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading & Unzipping '${fileList[0].name}'...`;
         const formData = new FormData();
         formData.append('file', fileList[0]);
 
         try {
-          const res = await fetch('/api/upload-zip', { method: 'POST', body: formData });
+          const res = await fetch('/api/upload-zip', { 
+            method: 'POST', 
+            body: formData,
+            signal: currentAbortController.signal 
+          });
           const data = await res.json();
           if (res.ok && data.success) {
             uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Created 360° SKU '${data.sku}'!`;
             showToast(`SKU '${data.sku}' created!`);
             fetchItems();
-          } else {
-            uploadStatus.textContent = 'Upload failed: ' + (data.error || 'Unknown error');
           }
         } catch (err) {
-          uploadStatus.textContent = 'Upload error: ' + err.message;
+          if (err.name === 'AbortError') {
+            uploadStatus.innerHTML = `<i class="fa-solid fa-circle-xmark" style="color:#ef4444;"></i> Upload stopped.`;
+          } else {
+            uploadStatus.textContent = 'Upload failed: ' + err.message;
+          }
+        } finally {
+          btnAbortUpload.style.display = 'none';
         }
         return;
       }
 
-      // 2. Group files by top-level SKU subfolder name
+      // Group files by SKU folder name
       const skuGroups = {};
       let hasSubfolders = false;
 
@@ -808,11 +836,14 @@
           hasSubfolders = true;
           const sku = parts[0];
           if (!skuGroups[sku]) skuGroups[sku] = [];
-          skuGroups[sku].push(file);
+          
+          // Filter out giant redundant standalone HTML files (24MB) for super fast browser uploads
+          if (!file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase() === 'index.html') {
+            skuGroups[sku].push(file);
+          }
         }
       }
 
-      // If single SKU folder or loose files
       if (!hasSubfolders) {
         let singleSku = 'scanned_item';
         if (fileList[0].webkitRelativePath) {
@@ -820,29 +851,33 @@
           if (parts.length > 0) singleSku = parts[0];
         }
         const promptSku = prompt('Confirm Website SKU ID for this 360° scan:', singleSku);
-        if (!promptSku) return;
+        if (!promptSku) {
+          btnAbortUpload.style.display = 'none';
+          return;
+        }
         skuGroups[promptSku.trim()] = fileList;
       }
 
       const detectedSkus = Object.keys(skuGroups);
       uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Checking cloud library for existing SKUs...`;
 
-      // 3. Compare with existing cloud SKUs to skip older ones
       await fetchItems();
       const existingSkus = new Set(rawItems.map(i => (i.sku || i.stoneId).toLowerCase()));
       const newSkus = detectedSkus.filter(sku => !existingSkus.has(sku.toLowerCase()));
 
       if (newSkus.length === 0) {
         uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> All ${detectedSkus.length} SKU folder(s) are already up to date in the cloud library!`;
+        btnAbortUpload.style.display = 'none';
         showToast('All SKUs up to date!');
         return;
       }
 
-      // 4. Batch upload only NEW SKUs
       let completed = 0;
       for (let sku of newSkus) {
+        if (!currentAbortController || currentAbortController.signal.aborted) break;
+
         completed++;
-        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Syncing new SKU ${completed} of ${newSkus.length}: '${sku}'...`;
+        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Syncing SKU ${completed} of ${newSkus.length}: '${sku}'...`;
 
         const formData = new FormData();
         formData.append('stoneId', sku);
@@ -853,16 +888,24 @@
         try {
           await fetch(`/api/upload?stoneId=${encodeURIComponent(sku)}`, {
             method: 'POST',
-            body: formData
+            body: formData,
+            signal: currentAbortController.signal
           });
         } catch (err) {
+          if (err.name === 'AbortError') {
+            console.log('Upload aborted by user');
+            break;
+          }
           console.error(`Failed to upload SKU ${sku}:`, err);
         }
       }
 
-      uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully synced ${newSkus.length} new SKU(s) to cloud library!`;
-      showToast(`Synced ${newSkus.length} new SKUs!`);
-      fetchItems();
+      btnAbortUpload.style.display = 'none';
+      if (currentAbortController && !currentAbortController.signal.aborted) {
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully synced ${newSkus.length} new SKU(s) to cloud library!`;
+        showToast(`Synced ${newSkus.length} new SKUs!`);
+        fetchItems();
+      }
     }
 
     fetchItems();
