@@ -475,12 +475,12 @@
   <div class="container">
     <div class="upload-card" id="dropZone">
       <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-      <div class="upload-title" id="uploadStatus">Bulk Local Scan Sync & Upload</div>
-      <div class="upload-subtitle">Select master scan folder (e.g. <code>E:\vision360_data</code>) to sync all subfolder SKUs automatically</div>
+      <div class="upload-title" id="uploadStatus">Bulk Local Scan 2-Way Sync & Mirror</div>
+      <div class="upload-subtitle">Select master scan folder (e.g. <code>E:\vision360_data</code>) to upload missing SKUs and prune deleted local SKUs</div>
       
       <div class="btn-group-upload">
         <button class="btn-upload btn-sync-refresh" type="button" onclick="document.getElementById('bulkFolderInput').click()">
-          <i class="fa-solid fa-rotate"></i> Sync Bulk Scans (E:\vision360_data)
+          <i class="fa-solid fa-arrows-rotate"></i> 2-Way Sync Bulk Scans (E:\vision360_data)
         </button>
         <button class="btn-upload btn-upload-sec" type="button" onclick="document.getElementById('singleFolderInput').click()">
           <i class="fa-solid fa-folder-plus"></i> Upload Single SKU Folder
@@ -489,7 +489,7 @@
           <i class="fa-solid fa-file-zipper"></i> Upload ZIP
         </button>
         <button class="btn-upload btn-abort-upload" id="btnAbortUpload" type="button" onclick="cancelUpload()">
-          <i class="fa-solid fa-circle-stop"></i> 🛑 Stop Upload
+          <i class="fa-solid fa-circle-stop"></i> 🛑 Stop Sync
         </button>
       </div>
 
@@ -609,7 +609,7 @@
         grid.innerHTML = `
           <div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 60px;">
             <i class="fa-solid fa-gem" style="font-size: 40px; margin-bottom: 12px;"></i>
-            <p>No matching SKUs found in library. Click 'Sync Bulk Scans' or select a single SKU folder above!</p>
+            <p>No matching SKUs found in library. Click '2-Way Sync Bulk Scans' or select a single SKU folder above!</p>
           </div>
         `;
         tableBody.innerHTML = `
@@ -756,7 +756,7 @@
         const res = await fetch(`/api/items/${sku}`, { method: 'DELETE' });
         if (res.ok) {
           showToast(`Deleted SKU ${sku}`);
-          fetchItems();
+          await fetchItems();
         }
       } catch (err) {
         alert('Failed to delete SKU: ' + err.message);
@@ -769,8 +769,8 @@
         currentAbortController = null;
         document.getElementById('btnAbortUpload').style.display = 'none';
         const uploadStatus = document.getElementById('uploadStatus');
-        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-xmark" style="color:#ef4444;"></i> Upload stopped by user.`;
-        showToast('Upload stopped!');
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-xmark" style="color:#ef4444;"></i> Sync stopped by user.`;
+        showToast('Sync stopped!');
       }
     }
 
@@ -829,7 +829,7 @@
       }
     });
 
-    // Bulk Master Folder Upload: Automatically groups files by subfolder SKU names!
+    // Bulk Master Folder Upload: Performs 2-Way Sync (Uploads missing + Prunes deleted)
     bulkFolderInput.addEventListener('change', () => {
       if (bulkFolderInput.files.length > 0) {
         processUploadFiles(Array.from(bulkFolderInput.files));
@@ -924,7 +924,7 @@
         return;
       }
 
-      // Smart Subfolder Grouping Algorithm for Bulk Master Scans Folder Selection
+      // Smart Subfolder Grouping & 2-Way Sync Algorithm
       const skuGroups = {};
 
       for (let file of fileList) {
@@ -944,28 +944,33 @@
         skuGroups[sku].push(file);
       }
 
-      const detectedSkus = Object.keys(skuGroups).filter(k => k !== 'unclassified');
-      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Found ${detectedSkus.length} SKU subfolder(s). Checking database...`;
+      const detectedLocalSkus = Object.keys(skuGroups).filter(k => k !== 'unclassified');
+      const localSkusSet = new Set(detectedLocalSkus.map(s => s.toLowerCase()));
+
+      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Found ${detectedLocalSkus.length} local SKU subfolder(s). Comparing with cloud database...`;
 
       await fetchItems();
-      const existingSkus = new Set(rawItems.map(i => (i.sku || i.stoneId).toLowerCase()));
-      const newSkus = detectedSkus.filter(sku => !existingSkus.has(sku.toLowerCase()));
+      const cloudSkusMap = new Map(rawItems.map(i => [(i.sku || i.stoneId).toLowerCase(), (i.sku || i.stoneId)]));
 
-      if (newSkus.length === 0) {
-        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> All ${detectedSkus.length} SKU subfolder(s) already exist in database! No missing SKUs to upload.`;
-        btnAbortUpload.style.display = 'none';
-        showToast('All SKUs up to date in database!');
-        return;
-      }
+      // 1. Identify missing SKUs to upload
+      const newSkus = detectedLocalSkus.filter(sku => !cloudSkusMap.has(sku.toLowerCase()));
 
-      let completed = 0;
-      let successCount = 0;
+      // 2. Identify deleted local SKUs to prune from cloud
+      const deletedLocalSkus = Array.from(cloudSkusMap.keys())
+        .filter(cloudSkuLower => !localSkusSet.has(cloudSkuLower))
+        .map(cloudSkuLower => cloudSkusMap.get(cloudSkuLower));
 
+      console.log(`[2-WAY SYNC] Uploading ${newSkus.length} new SKU(s), Pruning ${deletedLocalSkus.length} deleted local SKU(s).`);
+
+      let completedUploads = 0;
+      let successUploadCount = 0;
+
+      // Phase 1: Upload missing local SKUs
       for (let sku of newSkus) {
         if (!currentAbortController || currentAbortController.signal.aborted) break;
 
-        completed++;
-        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading SKU ${completed} of ${newSkus.length}: '${sku}' (${skuGroups[sku].length} files)...`;
+        completedUploads++;
+        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Phase 1 (Upload): SKU ${completedUploads} of ${newSkus.length}: '${sku}' (${skuGroups[sku].length} files)...`;
 
         const formData = new FormData();
         formData.append('stoneId', sku);
@@ -981,26 +986,45 @@
           });
           
           if (res.ok) {
-            successCount++;
-            showToast(`✅ Uploaded SKU '${sku}'! (${completed}/${newSkus.length})`);
-            // 🌟 IMMEDIATELY REFRESH GALLERY SO NEW SKU CARD APPEARS ON SCREEN INSTANTLY!
+            successUploadCount++;
+            showToast(`✅ Uploaded new SKU '${sku}'! (${completedUploads}/${newSkus.length})`);
             await fetchItems();
-          } else {
-            console.warn(`Upload SKU '${sku}' returned status ${res.status}`);
           }
         } catch (err) {
-          if (err.name === 'AbortError') {
-            console.log('Upload aborted by user');
-            break;
-          }
+          if (err.name === 'AbortError') break;
           console.error(`Failed to upload SKU ${sku}:`, err);
+        }
+      }
+
+      // Phase 2: Prune deleted local SKUs from cloud
+      let prunedCount = 0;
+      if (deletedLocalSkus.length > 0 && (!currentAbortController || !currentAbortController.signal.aborted)) {
+        for (let sku of deletedLocalSkus) {
+          if (!currentAbortController || currentAbortController.signal.aborted) break;
+
+          prunedCount++;
+          uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Phase 2 (Prune): Deleting cloud SKU ${prunedCount} of ${deletedLocalSkus.length}: '${sku}'...`;
+
+          try {
+            const res = await fetch(`/api/items/${encodeURIComponent(sku)}`, { 
+              method: 'DELETE',
+              signal: currentAbortController.signal
+            });
+            if (res.ok) {
+              showToast(`🗑️ Pruned deleted local SKU '${sku}' from cloud!`);
+              await fetchItems();
+            }
+          } catch (err) {
+            if (err.name === 'AbortError') break;
+            console.error(`Failed to prune SKU ${sku}:`, err);
+          }
         }
       }
 
       btnAbortUpload.style.display = 'none';
       if (currentAbortController && !currentAbortController.signal.aborted) {
-        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Successfully uploaded ${successCount} new SKU(s) to gallery!`;
-        showToast(`Synced ${successCount} new SKUs!`);
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> 2-Way Sync Complete! Uploaded ${successUploadCount} new SKU(s), Pruned ${prunedCount} deleted SKU(s).`;
+        showToast(`2-Way Sync Complete! (+${successUploadCount} / -${prunedCount})`);
         await fetchItems();
       }
     }
