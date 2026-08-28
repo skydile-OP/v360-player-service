@@ -625,7 +625,6 @@
       grid.innerHTML = items.map(item => `
         <div class="card">
           <div class="card-thumb">
-            <span class="card-badge">${item.frameCount > 0 ? item.frameCount + ' F' : '360°'}</span>
             <img src="${item.thumbnail || '/css/images/info.png'}" alt="${item.sku}" onerror="this.src='/css/images/info.png'">
           </div>
           <div class="card-body">
