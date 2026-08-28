@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     <title>Weissdiamonds.com 360° Interactive Viewer</title>
-    <link href="css/vision360.css?v=15" rel="stylesheet" type="text/css" />
+    <link href="css/vision360.css?v=16" rel="stylesheet" type="text/css" />
     <script src="js/jquery.min.js"></script>
-    <script type="text/javascript" src="js/w.js?v=15"></script>
-    <script type="text/javascript" src="js/vision360.js?v=15"></script>
+    <script type="text/javascript" src="js/w.js?v=16"></script>
+    <script type="text/javascript" src="js/vision360.js?v=16"></script>
     <style>
         html, body {
             margin: 0;
@@ -58,27 +58,51 @@
                 isHashSURL: 0,
                 zoomslide: 1,
                 autoPlay: 1,
-                speed: 180,
+                autoplay: 1,
+                btnAutoPlay: 1,
+                btn: 1,
+                speed: 120,
                 surl: '/',
                 watermarkLink: 'https://weissdiamonds.com',
                 otherLogoLink: 'https://weissdiamonds.com',
                 iconPath: '/image/',
-                iconPlay: '/image/play.png?v=15',
-                iconPause: '/image/pause.png?v=15',
-                iconNext: '/image/next.png?v=15',
-                iconPrev: '/image/prev.png?v=15',
-                iconReverse: '/image/reverse.png?v=15',
-                iconInfo: '/image/info.png?v=15',
-                iconGrey: '/image/grey.png?v=15',
-                iconZoom: '/image/zoom.png?v=15',
-                icon360: '/image/360.png?v=15',
-                iconFV: '/image/faceup.png?v=15',
-                iconFace: '/image/front.png?v=15',
-                iconRV: '/image/right.png?v=15',
-                iconBV: '/image/back.png?v=15',
-                iconLV: '/image/left.png?v=15',
-                iconAutoPlay: '/image/autoplay.png?v=15'
+                iconPlay: '/image/play.png?v=16',
+                iconPause: '/image/pause.png?v=16',
+                iconNext: '/image/next.png?v=16',
+                iconPrev: '/image/prev.png?v=16',
+                iconReverse: '/image/reverse.png?v=16',
+                iconInfo: '/image/info.png?v=16',
+                iconGrey: '/image/grey.png?v=16',
+                iconZoom: '/image/zoom.png?v=16',
+                icon360: '/image/360.png?v=16',
+                iconFV: '/image/faceup.png?v=16',
+                iconFace: '/image/front.png?v=16',
+                iconRV: '/image/right.png?v=16',
+                iconBV: '/image/back.png?v=16',
+                iconLV: '/image/left.png?v=16',
+                iconAutoPlay: '/image/autoplay.png?v=16'
             });
+
+            // Ensure 360° interactive swivel starts auto-playing at native V360 pace immediately on load
+            var autoPlayTriggered = false;
+            var checkAutoPlay = setInterval(function() {
+                var playBtn = $('#autoPlay');
+                if (playBtn.length > 0) {
+                    var title = (playBtn.attr('title') || playBtn.attr('data-original-title') || '').toLowerCase();
+                    // If not currently running ('stop' in title), trigger play click to start continuous swivel
+                    if (title.indexOf('stop') === -1) {
+                        playBtn.click();
+                        autoPlayTriggered = true;
+                    } else {
+                        autoPlayTriggered = true;
+                    }
+                    if (autoPlayTriggered) {
+                        clearInterval(checkAutoPlay);
+                    }
+                }
+            }, 150);
+
+            setTimeout(function() { clearInterval(checkAutoPlay); }, 5000);
 
             // Enforce Weissdiamonds.com watermark branding
             setInterval(function() {
