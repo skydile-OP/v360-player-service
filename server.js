@@ -192,12 +192,12 @@ app.get('/viewer.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
 });
 
-// PROTECTED Admin Dashboard Root & index.html
-app.get('/', (req, res) => {
+// PROTECTED Admin Dashboard Root & index.html (Requires Admin Authentication)
+app.get('/', adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/index.html', (req, res) => {
+app.get('/index.html', adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
