@@ -472,24 +472,8 @@
       <i class="fa-solid fa-gem"></i>
       <span>V360 SKU Library</span>
     </div>
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <span class="badge">Self-Hosted Railway Server</span>
-      <button class="btn-sm" style="background:#dc2626; color:#fff; padding: 6px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; border:none;" onclick="logoutAdmin()">
-        <i class="fa-solid fa-right-from-bracket"></i> Log Out
-      </button>
-    </div>
+    <span class="badge"><i class="fa-solid fa-shield-halved"></i> Protected Admin Server</span>
   </nav>
-
-  <div id="loginModal" style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 9999;">
-    <div style="background: #1e293b; padding: 32px; border-radius: 14px; border: 1px solid #334155; width: 100%; max-width: 380px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
-      <i class="fa-solid fa-shield-halved" style="font-size: 44px; color: #38bdf8; margin-bottom: 16px;"></i>
-      <h2 style="color: #f8fafc; font-size: 22px; font-weight: 700; margin-bottom: 8px;">V360 Admin Portal</h2>
-      <p style="color: #94a3b8; font-size: 13px; margin-bottom: 20px;">Enter your admin password to access the management dashboard.</p>
-      <input type="password" id="adminPasswordInput" placeholder="Enter Admin Password" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 14px; margin-bottom: 16px; outline: none;" onkeyup="if(event.key==='Enter') submitLogin()">
-      <div id="loginError" style="color: #ef4444; font-size: 13px; margin-bottom: 14px; display: none;">Invalid password. Please try again.</div>
-      <button onclick="submitLogin()" style="width: 100%; padding: 12px; border-radius: 8px; border: none; background: #2563eb; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;">Log In</button>
-    </div>
-  </div>
 
   <div class="container">
     <div class="upload-card" id="dropZone">
