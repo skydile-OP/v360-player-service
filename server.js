@@ -38,30 +38,92 @@ const adminLimiter = rateLimit({
 
 app.use(globalLimiter);
 
+// Media directory configuration (Railway Volume / Persistent Disk Support)
+const MEDIA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.MEDIA_DIR || path.join(__dirname, 'data', 'media');
+if (!fs.existsSync(MEDIA_DIR)) {
+  fs.mkdirSync(MEDIA_DIR, { recursive: true });
+}
+
+const SEED_DIR = path.join(__dirname, 'data', 'media');
+
+// Auto-seed media directory from repository seed files on startup if needed
+function seedMediaFiles() {
+  try {
+    if (fs.existsSync(SEED_DIR) && SEED_DIR !== MEDIA_DIR) {
+      const seedItems = fs.readdirSync(SEED_DIR);
+      seedItems.forEach(item => {
+        const srcItem = path.join(SEED_DIR, item);
+        const destItem = path.join(MEDIA_DIR, item);
+        if (fs.statSync(srcItem).isDirectory() && !fs.existsSync(destItem)) {
+          fs.cpSync(srcItem, destItem, { recursive: true });
+          console.log(`[Seed] Restored SKU '${item}' into persistent volume storage.`);
+        }
+      });
+    }
+  } catch (err) {
+    console.error(`[Seed Error] Could not auto-seed media directory:`, err.message);
+  }
+}
+seedMediaFiles();
+
+const TEMP_UPLOAD_DIR = path.join(__dirname, 'data', 'temp_uploads');
+if (!fs.existsSync(TEMP_UPLOAD_DIR)) {
+  fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
+}
+
+// Session Token Generation helper
+const ADMIN_SECRET = process.env.ADMIN_PASSWORD || 'v360secure';
+function generateToken(pass) {
+  return Buffer.from(`v360_token_${pass}_${ADMIN_SECRET}`).toString('hex');
+}
+const VALID_TOKEN = generateToken(ADMIN_SECRET);
+
 // Admin Authentication Middleware
 function adminAuth(req, res, next) {
-  const adminPassword = process.env.ADMIN_PASSWORD || 'v360admin';
-  const adminUser = process.env.ADMIN_USERNAME || 'admin';
-
   const authHeader = req.headers['authorization'];
-  if (!authHeader) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="V360 Admin Portal"');
-    return res.status(401).send('Authentication required to access V360 Admin Dashboard.');
+  const tokenHeader = req.headers['x-admin-token'];
+  const cookieHeader = req.headers['cookie'] || '';
+
+  let token = null;
+  if (tokenHeader) {
+    token = tokenHeader;
+  } else if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (authHeader && authHeader.startsWith('Basic ')) {
+    try {
+      const auth = Buffer.from(authHeader.split(' ')[1] || '', 'base64').toString().split(':');
+      if (auth[1] === ADMIN_SECRET) {
+        return next();
+      }
+    } catch (e) {}
+  } else if (cookieHeader.includes('v360_admin_token=')) {
+    const match = cookieHeader.match(/v360_admin_token=([^;]+)/);
+    if (match) token = match[1];
   }
 
-  try {
-    const auth = Buffer.from(authHeader.split(' ')[1] || '', 'base64').toString().split(':');
-    const user = auth[0];
-    const pass = auth[1];
-
-    if (user === adminUser && pass === adminPassword) {
-      return next();
-    }
-  } catch (e) {}
+  if (token === VALID_TOKEN) {
+    return next();
+  }
 
   res.setHeader('WWW-Authenticate', 'Basic realm="V360 Admin Portal"');
-  return res.status(401).send('Access Denied: Invalid credentials.');
+  return res.status(401).json({ error: 'Authentication required. Please log in.' });
 }
+
+// API Login Endpoint
+app.post('/api/login', adminLimiter, (req, res) => {
+  const { password } = req.body;
+  if (password === ADMIN_SECRET) {
+    res.setHeader('Set-Cookie', `v360_admin_token=${VALID_TOKEN}; Path=/; HttpOnly; SameSite=Strict`);
+    return res.json({ success: true, token: VALID_TOKEN });
+  }
+  return res.status(401).json({ error: 'Invalid admin password.' });
+});
+
+// API Logout Endpoint
+app.post('/api/logout', (req, res) => {
+  res.setHeader('Set-Cookie', 'v360_admin_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+  res.json({ success: true, message: 'Logged out successfully.' });
+});
 
 // Smart Fail-Safe URL Handler: ONLY redirect if an iframe HTML tag is present in the requested URL path
 app.use((req, res, next) => {
@@ -82,16 +144,6 @@ app.use((req, res, next) => {
   res.setHeader('Expires', '0');
   next();
 });
-
-const MEDIA_DIR = process.env.MEDIA_DIR || path.join(__dirname, 'data', 'media');
-if (!fs.existsSync(MEDIA_DIR)) {
-  fs.mkdirSync(MEDIA_DIR, { recursive: true });
-}
-
-const TEMP_UPLOAD_DIR = path.join(__dirname, 'data', 'temp_uploads');
-if (!fs.existsSync(TEMP_UPLOAD_DIR)) {
-  fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
-}
 
 function findStoneDir(stoneId) {
   if (!stoneId) return null;
@@ -121,7 +173,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ 
   storage,
-  limits: { fileSize: 150 * 1024 * 1024 } // 150MB per file limit
+  limits: { fileSize: 150 * 1024 * 1024 }
 });
 
 // Serve Public Player Assets & Icons (100% Public Unauthenticated Access for Shopify & Web Embeds)
@@ -140,12 +192,12 @@ app.get('/viewer.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
 });
 
-// PROTECTED Admin Dashboard Root & index.html (Requires Admin Basic Auth)
-app.get('/', adminAuth, (req, res) => {
+// PROTECTED Admin Dashboard Root & index.html
+app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/index.html', adminAuth, (req, res) => {
+app.get('/index.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
@@ -189,7 +241,6 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
 
   const filePath = path.join(stoneDir, filename);
   if (!fs.existsSync(filePath)) {
-    // Smart Icon Fallback
     if (/\.(png|jpg|gif|svg)$/i.test(filename)) {
       const defaultIcon = path.join(__dirname, 'public', '360.png');
       if (fs.existsSync(defaultIcon)) {
