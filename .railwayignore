@@ -1,0 +1,8 @@
+node_modules/
+.env
+*.log
+.git/
+*.py
+data/media/*
+test_scan_folder/
+.DS_Store

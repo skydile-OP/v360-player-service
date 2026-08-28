@@ -475,12 +475,12 @@
   <div class="container">
     <div class="upload-card" id="dropZone">
       <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-      <div class="upload-title" id="uploadStatus">Bulk Local Scan 2-Way Sync & Mirror</div>
-      <div class="upload-subtitle">Select master scan folder (e.g. <code>E:\vision360_data</code>) to upload missing SKUs and prune deleted local SKUs</div>
+      <div class="upload-title" id="uploadStatus">Bulk Local Scan & Upload</div>
+      <div class="upload-subtitle">Select master database folder (e.g. <code>E:\vision360_data</code>) to automatically upload all missing SKUs</div>
       
       <div class="btn-group-upload">
         <button class="btn-upload btn-sync-refresh" type="button" onclick="document.getElementById('bulkFolderInput').click()">
-          <i class="fa-solid fa-arrows-rotate"></i> 2-Way Sync Bulk Scans (E:\vision360_data)
+          <i class="fa-solid fa-arrows-rotate"></i> Bulk Upload Master Folder (E:\vision360_data)
         </button>
         <button class="btn-upload btn-upload-sec" type="button" onclick="document.getElementById('singleFolderInput').click()">
           <i class="fa-solid fa-folder-plus"></i> Upload Single SKU Folder
@@ -996,35 +996,10 @@
         }
       }
 
-      // Phase 2: Prune deleted local SKUs from cloud
-      let prunedCount = 0;
-      if (deletedLocalSkus.length > 0 && (!currentAbortController || !currentAbortController.signal.aborted)) {
-        for (let sku of deletedLocalSkus) {
-          if (!currentAbortController || currentAbortController.signal.aborted) break;
-
-          prunedCount++;
-          uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Phase 2 (Prune): Deleting cloud SKU ${prunedCount} of ${deletedLocalSkus.length}: '${sku}'...`;
-
-          try {
-            const res = await fetch(`/api/items/${encodeURIComponent(sku)}`, { 
-              method: 'DELETE',
-              signal: currentAbortController.signal
-            });
-            if (res.ok) {
-              showToast(`🗑️ Pruned deleted local SKU '${sku}' from cloud!`);
-              await fetchItems();
-            }
-          } catch (err) {
-            if (err.name === 'AbortError') break;
-            console.error(`Failed to prune SKU ${sku}:`, err);
-          }
-        }
-      }
-
       btnAbortUpload.style.display = 'none';
       if (currentAbortController && !currentAbortController.signal.aborted) {
-        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> 2-Way Sync Complete! Uploaded ${successUploadCount} new SKU(s), Pruned ${prunedCount} deleted SKU(s).`;
-        showToast(`2-Way Sync Complete! (+${successUploadCount} / -${prunedCount})`);
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Bulk Scan Sync Complete! Uploaded ${successUploadCount} SKU(s).`;
+        showToast(`Bulk Sync Complete! (${successUploadCount} new SKU(s) added)`);
         await fetchItems();
       }
     }
