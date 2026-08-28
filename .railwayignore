@@ -4,5 +4,7 @@ node_modules/
 .git/
 *.py
 data/media/*
+!data/media/PR048
+!data/media/SE313
 test_scan_folder/
 .DS_Store
