@@ -193,11 +193,13 @@ app.get('/viewer.html', (req, res) => {
 });
 
 // PROTECTED Admin Dashboard Root & index.html (Requires Admin Authentication)
-app.get('/', adminAuth, (req, res) => {
+app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/index.html', adminAuth, (req, res) => {
+app.get('/index.html', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
