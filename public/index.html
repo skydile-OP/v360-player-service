@@ -442,6 +442,9 @@
       background: #ffffff !important;
       filter: none !important;
       -webkit-filter: none !important;
+      color-profile: sRGB !important;
+      color-interpolation: sRGB !important;
+      image-rendering: -webkit-optimize-contrast !important;
     }
 
     .toast {
@@ -934,6 +937,10 @@
         if (parts.length >= 3) {
           sku = parts[1];
         } else if (parts.length === 2) {
+          const rootLower = parts[0].toLowerCase();
+          if (rootLower.includes('vision360') || rootLower.includes('v360') || rootLower === 'data' || rootLower === 'media') {
+            continue; // Ignore stray files sitting directly in root master folder
+          }
           sku = parts[0];
         } else {
           sku = 'unclassified';
