@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const AdmZip = require('adm-zip');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const db = require('./db');
@@ -16,6 +17,51 @@ app.enable('trust proxy');
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Global Rate Limiter: Protects against DDoS and high-frequency crawling (300 req/min)
+const globalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' }
+});
+
+// Admin Rate Limiter: Protects against brute-force password guessing & upload spam (60 req/min)
+const adminLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many administrative requests, please try again later.' }
+});
+
+app.use(globalLimiter);
+
+// Admin Authentication Middleware
+function adminAuth(req, res, next) {
+  const adminPassword = process.env.ADMIN_PASSWORD || 'v360admin';
+  const adminUser = process.env.ADMIN_USERNAME || 'admin';
+
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="V360 Admin Portal"');
+    return res.status(401).send('Authentication required to access V360 Admin Dashboard.');
+  }
+
+  try {
+    const auth = Buffer.from(authHeader.split(' ')[1] || '', 'base64').toString().split(':');
+    const user = auth[0];
+    const pass = auth[1];
+
+    if (user === adminUser && pass === adminPassword) {
+      return next();
+    }
+  } catch (e) {}
+
+  res.setHeader('WWW-Authenticate', 'Basic realm="V360 Admin Portal"');
+  return res.status(401).send('Access Denied: Invalid credentials.');
+}
 
 // Smart Fail-Safe URL Handler: ONLY redirect if an iframe HTML tag is present in the requested URL path
 app.use((req, res, next) => {
@@ -78,13 +124,33 @@ const upload = multer({
   limits: { fileSize: 150 * 1024 * 1024 } // 150MB per file limit
 });
 
-// Serve static frontend assets & icon directories
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve Public Player Assets & Icons (100% Public Unauthenticated Access for Shopify & Web Embeds)
 app.use('/css/images', express.static(path.join(__dirname, 'public', 'css', 'images')));
+app.use('/css', express.static(path.join(__dirname, 'public', 'css')));
+app.use('/js', express.static(path.join(__dirname, 'public', 'js')));
 app.use('/images', express.static(path.join(__dirname, 'public', 'images')));
 app.use('/image', express.static(path.join(__dirname, 'public', 'image')));
 
-app.get('/api/debug', (req, res) => {
+// PUBLIC 360° Interactive Viewer Pages (100% Unauthenticated Access for Shopify Embeds)
+app.get('/vision360.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
+});
+
+app.get('/viewer.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
+});
+
+// PROTECTED Admin Dashboard Root & index.html (Requires Admin Basic Auth)
+app.get('/', adminAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/index.html', adminAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// PROTECTED Admin Debug Endpoint
+app.get('/api/debug', adminAuth, (req, res) => {
   try {
     const mediaExists = fs.existsSync(MEDIA_DIR);
     const items = mediaExists ? fs.readdirSync(MEDIA_DIR) : [];
@@ -107,20 +173,7 @@ app.get('/api/debug', (req, res) => {
   }
 });
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Serve calibrated official V360 interactive viewer
-app.get('/vision360.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
-});
-
-app.get('/viewer.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
-});
-
-// V360 Asset Route
+// V360 Asset Route (100% Public for 360 viewer canvas images & MP4 videos)
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
@@ -129,42 +182,27 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
     return res.redirect(302, remoteUrl);
   }
 
-  // 1. Check if specific file exists inside SKU media folder
   const stoneDir = findStoneDir(stoneId);
-  if (stoneDir) {
-    const filePath = path.join(stoneDir, filename);
-    if (fs.existsSync(filePath)) {
-      return res.sendFile(filePath);
-    }
+  if (!stoneDir) {
+    return res.status(404).send('Stone directory not found');
   }
 
-  // 2. Automatic fallback for V360 toolbar icon requests
-  const dirsToSearch = [
-    path.join(__dirname, 'public'),
-    path.join(__dirname, 'public', 'css', 'images'),
-    path.join(__dirname, 'public', 'images'),
-    path.join(__dirname, 'public', 'image')
-  ];
-
-  const searchName = filename.toLowerCase().replace(/%20/g, ' ').replace(/\s+view/g, '').trim();
-
-  for (let d of dirsToSearch) {
-    if (fs.existsSync(d)) {
-      const files = fs.readdirSync(d);
-      const match = files.find(f => {
-        const fLower = f.toLowerCase();
-        return fLower === filename.toLowerCase() || fLower === searchName || fLower.includes(searchName.replace('.png', ''));
-      });
-      if (match) {
-        return res.sendFile(path.join(d, match));
+  const filePath = path.join(stoneDir, filename);
+  if (!fs.existsSync(filePath)) {
+    // Smart Icon Fallback
+    if (/\.(png|jpg|gif|svg)$/i.test(filename)) {
+      const defaultIcon = path.join(__dirname, 'public', '360.png');
+      if (fs.existsSync(defaultIcon)) {
+        return res.sendFile(defaultIcon);
       }
     }
+    return res.status(404).send('File not found');
   }
 
-  return res.status(404).json({ error: 'Asset not found', stoneId, filename });
+  res.sendFile(filePath);
 });
 
-// Wildcard Icon Fallback Middleware for Root & Nested Image Requests
+// Smart Fallback for image requests
 app.use((req, res, next) => {
   const reqPath = req.path;
   if (/\.(png|jpg|gif|svg)$/i.test(reqPath)) {
@@ -191,7 +229,6 @@ app.use((req, res, next) => {
       }
     }
 
-    // Default icon fallback so NO broken image box ever renders!
     const defaultIcon = path.join(__dirname, 'public', '360.png');
     if (fs.existsSync(defaultIcon)) {
       return res.sendFile(defaultIcon);
@@ -277,13 +314,13 @@ async function syncDiskItemsToDb(baseUrl) {
   console.log(`[DB] Synced ${diskItems.length} SKU(s) from disk into PostgreSQL.`);
 }
 
+// PUBLIC API Items Endpoint (100% Unauthenticated for Public Grid/Embedded Catalogs)
 app.get('/api/items', async (req, res) => {
   try {
     const hostHeader = req.get('host');
     const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
     const baseUrl = `${proto}://${hostHeader}`;
 
-    // 1. Try PostgreSQL Database
     if (db.isConnected) {
       const dbRows = await db.getAllSkus();
       if (dbRows && dbRows.length > 0) {
@@ -296,25 +333,25 @@ app.get('/api/items', async (req, res) => {
           hasHtml: r.has_html,
           videoUrl: r.video_url,
           createdAt: r.created_at,
-          v360Url: r.v360_url || `/vision360.html?d=${r.sku}`,
-          modernUrl: r.modern_url || `/viewer.html?d=${r.sku}`,
-          fullV360Url: `${baseUrl}/vision360.html?d=${r.sku}`,
-          fullModernUrl: `${baseUrl}/viewer.html?d=${r.sku}`,
-          embedCode: `<iframe src="${baseUrl}/vision360.html?d=${r.sku}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
+          v360Url: r.v360_url,
+          modernUrl: r.modern_url,
+          fullV360Url: `${baseUrl}${r.v360_url}`,
+          fullModernUrl: `${baseUrl}${r.modern_url}`,
+          embedCode: `<iframe src="${baseUrl}${r.v360_url}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
         }));
-        return res.json({ count: itemList.length, source: 'postgresql', items: itemList });
+        return res.json({ source: 'postgresql', count: itemList.length, items: itemList });
       }
     }
 
-    // 2. Filesystem Fallback Mode
-    const itemList = scanDiskItems(baseUrl);
-    res.json({ count: itemList.length, source: 'filesystem', items: itemList });
+    const diskItems = scanDiskItems(baseUrl);
+    res.json({ source: 'filesystem', count: diskItems.length, items: diskItems });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/items/:stoneId', async (req, res) => {
+// PUBLIC Single SKU Detail Endpoint
+app.get('/api/items/:stoneId', (req, res) => {
   const { stoneId } = req.params;
   const stoneDir = findStoneDir(stoneId);
 
@@ -339,7 +376,8 @@ app.get('/api/items/:stoneId', async (req, res) => {
   });
 });
 
-app.delete('/api/items/:stoneId', async (req, res) => {
+// PROTECTED Admin Delete Endpoint (Requires Auth & Admin Rate Limiter)
+app.delete('/api/items/:stoneId', adminAuth, adminLimiter, async (req, res) => {
   const { stoneId } = req.params;
   const stoneDir = findStoneDir(stoneId);
 
@@ -352,7 +390,8 @@ app.delete('/api/items/:stoneId', async (req, res) => {
   res.json({ success: true, message: `Deleted SKU ${stoneId}` });
 });
 
-app.post('/api/upload-zip', upload.single('file'), async (req, res) => {
+// PROTECTED Admin ZIP Upload Endpoint (Requires Auth & Admin Rate Limiter)
+app.post('/api/upload-zip', adminAuth, adminLimiter, upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No ZIP file uploaded' });
   }
@@ -432,7 +471,8 @@ app.post('/api/upload-zip', upload.single('file'), async (req, res) => {
   }
 });
 
-app.post('/api/upload', upload.array('files'), async (req, res) => {
+// PROTECTED Admin Standard Upload Endpoint (Requires Auth & Admin Rate Limiter)
+app.post('/api/upload', adminAuth, adminLimiter, upload.array('files'), async (req, res) => {
   const stoneId = req.body.stoneId || req.query.stoneId;
   if (!stoneId) {
     return res.status(400).json({ error: 'Missing stoneId/SKU parameter' });
