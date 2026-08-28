@@ -18,25 +18,14 @@ app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
-// Global Rate Limiter: Protects against DDoS and high-frequency crawling (300 req/min)
-const globalLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,
-  max: 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later.' }
-});
-
-// Admin Rate Limiter: Protects against brute-force password guessing & upload spam (60 req/min)
+// Admin Action Rate Limiter: Strictly scoped to protect against upload spam and brute-forcing (120 req/min)
 const adminLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
-  max: 60,
+  max: 120,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many administrative requests, please try again later.' }
 });
-
-app.use(globalLimiter);
 
 // Media directory configuration (Railway Volume / Persistent Disk Support)
 const MEDIA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.MEDIA_DIR || path.join(__dirname, 'data', 'media');
@@ -167,12 +156,12 @@ app.get('/viewer.html', (req, res) => {
 
 // PROTECTED Admin Dashboard Root & index.html (Requires HTTP Basic Auth)
 app.get('/', adminAuth, (req, res) => {
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.get('/index.html', adminAuth, (req, res) => {
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
