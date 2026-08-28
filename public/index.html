@@ -472,8 +472,26 @@
       <i class="fa-solid fa-gem"></i>
       <span>V360 SKU Library</span>
     </div>
-    <span class="badge"><i class="fa-solid fa-shield-halved"></i> Protected Admin Server</span>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span class="badge"><i class="fa-solid fa-shield-halved"></i> Protected Admin Server</span>
+      <button id="btnLogout" class="btn-sm" style="background:#dc2626; color:#fff; padding: 7px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; border:none; display: flex; align-items: center; gap: 6px; font-size: 13px;" onclick="logoutAdmin()">
+        <i class="fa-solid fa-right-from-bracket"></i> Log Out
+      </button>
+    </div>
   </nav>
+
+  <div id="loginModal" style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 99999;">
+    <div style="background: #1e293b; padding: 36px; border-radius: 16px; border: 1px solid #334155; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);">
+      <div style="width: 64px; height: 64px; background: rgba(56, 189, 248, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+        <i class="fa-solid fa-lock" style="font-size: 28px; color: #38bdf8;"></i>
+      </div>
+      <h2 style="color: #f8fafc; font-size: 22px; font-weight: 700; margin-bottom: 8px;">V360 Security Portal</h2>
+      <p style="color: #94a3b8; font-size: 13px; margin-bottom: 24px; line-height: 1.5;">Enter admin password to unlock management dashboard.</p>
+      <input type="password" id="adminPasswordInput" placeholder="Enter Admin Password" style="width: 100%; padding: 14px; border-radius: 10px; border: 1px solid #475569; background: #0f172a; color: #fff; font-size: 15px; margin-bottom: 16px; outline: none; box-sizing: border-box;" onkeyup="if(event.key==='Enter') submitLogin()">
+      <div id="loginError" style="color: #ef4444; font-size: 13px; margin-bottom: 16px; display: none; font-weight: 600;">Incorrect password. Try again.</div>
+      <button onclick="submitLogin()" style="width: 100%; padding: 14px; border-radius: 10px; border: none; background: #2563eb; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; transition: background 0.2s;">Log In</button>
+    </div>
+  </div>
 
   <div class="container">
     <div class="upload-card" id="dropZone">
@@ -755,10 +773,11 @@
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          document.cookie = `v360_admin_token=${data.token}; path=/; max-age=86400`;
+          localStorage.setItem('v360_auth', 'active');
+          document.cookie = "v360_session=active; path=/; max-age=86400";
           document.getElementById('loginModal').style.display = 'none';
           document.getElementById('loginError').style.display = 'none';
-          loadItems();
+          fetchItems();
         } else {
           document.getElementById('loginError').style.display = 'block';
         }
@@ -770,13 +789,14 @@
 
     function logoutAdmin() {
       fetch('/api/logout', { method: 'POST' }).finally(() => {
-        document.cookie = "v360_admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+        localStorage.removeItem('v360_auth');
+        document.cookie = "v360_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
         location.reload();
       });
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      if (document.cookie.includes('v360_admin_token=')) {
+      if (localStorage.getItem('v360_auth') === 'active' || document.cookie.includes('v360_session=active')) {
         document.getElementById('loginModal').style.display = 'none';
       } else {
         document.getElementById('loginModal').style.display = 'flex';

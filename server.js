@@ -60,30 +60,47 @@ if (!fs.existsSync(TEMP_UPLOAD_DIR)) {
   fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
 }
 
-// Native HTTP Basic Authentication Middleware
+// Authentication Middleware
 function adminAuth(req, res, next) {
   const adminPassword = process.env.ADMIN_PASSWORD || 'v360secure';
   const adminUser = process.env.ADMIN_USERNAME || 'admin';
 
   const authHeader = req.headers['authorization'];
-  if (!authHeader) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="V360 Admin Portal"');
-    return res.status(401).send('Authentication required to access V360 Admin Dashboard.');
+  const cookieHeader = req.headers['cookie'] || '';
+
+  if (cookieHeader.includes('v360_session=active')) {
+    return next();
   }
 
-  try {
-    const auth = Buffer.from(authHeader.split(' ')[1] || '', 'base64').toString().split(':');
-    const user = auth[0];
-    const pass = auth[1];
-
-    if (user === adminUser && pass === adminPassword) {
-      return next();
-    }
-  } catch (e) {}
+  if (authHeader && authHeader.startsWith('Basic ')) {
+    try {
+      const auth = Buffer.from(authHeader.split(' ')[1] || '', 'base64').toString().split(':');
+      if (auth[0] === adminUser && auth[1] === adminPassword) {
+        return next();
+      }
+    } catch (e) {}
+  }
 
   res.setHeader('WWW-Authenticate', 'Basic realm="V360 Admin Portal"');
-  return res.status(401).send('Access Denied: Invalid credentials.');
+  return res.status(401).json({ error: 'Authentication required.' });
 }
+
+// API Login Endpoint
+app.post('/api/login', adminLimiter, (req, res) => {
+  const adminPassword = process.env.ADMIN_PASSWORD || 'v360secure';
+  const { password } = req.body;
+  if (password === adminPassword) {
+    res.setHeader('Set-Cookie', 'v360_session=active; Path=/; SameSite=Lax; max-age=86400');
+    return res.json({ success: true, message: 'Logged in successfully' });
+  }
+  return res.status(401).json({ error: 'Invalid password' });
+});
+
+// API Logout Endpoint
+app.post('/api/logout', (req, res) => {
+  res.setHeader('Set-Cookie', 'v360_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+  res.json({ success: true, message: 'Logged out successfully' });
+});
 
 // Smart Fail-Safe URL Handler: ONLY redirect if an iframe HTML tag is present in the requested URL path
 app.use((req, res, next) => {
@@ -154,13 +171,13 @@ app.get('/viewer.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
 });
 
-// PROTECTED Admin Dashboard Root & index.html (Requires HTTP Basic Auth)
-app.get('/', adminAuth, (req, res) => {
+// PROTECTED Admin Dashboard Root & index.html
+app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/index.html', adminAuth, (req, res) => {
+app.get('/index.html', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
