@@ -206,6 +206,19 @@ app.get('/api/debug', adminAuth, (req, res) => {
   }
 });
 
+function getFallbackIconPath() {
+  const candidates = [
+    path.join(__dirname, 'public', '360.png'),
+    path.join(__dirname, 'public', 'image', '360.png'),
+    path.join(__dirname, 'public', 'css', 'images', '360.png'),
+    path.join(__dirname, 'public', 'images', '360.png')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return path.join(__dirname, 'public', '360.png');
+}
+
 // V360 Asset Route (100% Public for 360 viewer canvas images & MP4 videos)
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
@@ -215,8 +228,7 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
     return res.redirect(302, remoteUrl);
   }
 
-  const defaultIcon = path.join(__dirname, 'public', 'image', '360.png');
-  const fallbackIcon = fs.existsSync(defaultIcon) ? defaultIcon : path.join(__dirname, 'public', '360.png');
+  const fallbackIcon = getFallbackIconPath();
 
   const stoneDir = findStoneDir(stoneId);
   if (!stoneDir) {
