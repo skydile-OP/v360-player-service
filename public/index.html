@@ -796,6 +796,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+      fetchItems();
       if (localStorage.getItem('v360_auth') === 'active' || document.cookie.includes('v360_session=active')) {
         document.getElementById('loginModal').style.display = 'none';
       } else {
