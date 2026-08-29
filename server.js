@@ -215,20 +215,35 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
     return res.redirect(302, remoteUrl);
   }
 
+  const defaultIcon = path.join(__dirname, 'public', 'image', '360.png');
+  const fallbackIcon = fs.existsSync(defaultIcon) ? defaultIcon : path.join(__dirname, 'public', '360.png');
+
   const stoneDir = findStoneDir(stoneId);
   if (!stoneDir) {
-    return res.status(404).send('Stone directory not found');
+    if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(filename)) {
+      return res.sendFile(fallbackIcon);
+    }
+    if (filename.endsWith('.json')) {
+      return res.json([{ image: '/image/360.png' }]);
+    }
+    if (filename.endsWith('.mp4')) {
+      return res.redirect(302, `/vision360.html?d=${encodeURIComponent(stoneId)}`);
+    }
+    return res.sendFile(fallbackIcon);
   }
 
   const filePath = path.join(stoneDir, filename);
   if (!fs.existsSync(filePath)) {
-    if (/\.(png|jpg|gif|svg)$/i.test(filename)) {
-      const defaultIcon = path.join(__dirname, 'public', '360.png');
-      if (fs.existsSync(defaultIcon)) {
-        return res.sendFile(defaultIcon);
-      }
+    if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(filename)) {
+      return res.sendFile(fallbackIcon);
     }
-    return res.status(404).send('File not found');
+    if (filename.endsWith('.json')) {
+      return res.json([{ image: '/image/360.png' }]);
+    }
+    if (filename.endsWith('.mp4')) {
+      return res.redirect(302, `/vision360.html?d=${encodeURIComponent(stoneId)}`);
+    }
+    return res.sendFile(fallbackIcon);
   }
 
   res.sendFile(filePath);
