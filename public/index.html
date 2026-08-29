@@ -1014,27 +1014,19 @@
       uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Found ${detectedLocalSkus.length} local SKU subfolder(s). Comparing with cloud database...`;
 
       await fetchItems();
-      const cloudSkusMap = new Map(rawItems.map(i => [(i.sku || i.stoneId).toLowerCase(), (i.sku || i.stoneId)]));
+      const skusToUpload = detectedLocalSkus;
 
-      // 1. Identify missing SKUs to upload
-      const newSkus = detectedLocalSkus.filter(sku => !cloudSkusMap.has(sku.toLowerCase()));
-
-      // 2. Identify deleted local SKUs to prune from cloud
-      const deletedLocalSkus = Array.from(cloudSkusMap.keys())
-        .filter(cloudSkuLower => !localSkusSet.has(cloudSkuLower))
-        .map(cloudSkuLower => cloudSkusMap.get(cloudSkuLower));
-
-      console.log(`[2-WAY SYNC] Uploading ${newSkus.length} new SKU(s), Pruning ${deletedLocalSkus.length} deleted local SKU(s).`);
+      console.log(`[BULK SYNC] Found ${skusToUpload.length} local SKU(s). Uploading all physical media files to persistent volume...`);
 
       let completedUploads = 0;
       let successUploadCount = 0;
 
-      // Phase 1: Upload missing local SKUs
-      for (let sku of newSkus) {
+      // Upload all detected local SKUs to populate persistent volume storage
+      for (let sku of skusToUpload) {
         if (!currentAbortController || currentAbortController.signal.aborted) break;
 
         completedUploads++;
-        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Phase 1 (Upload): SKU ${completedUploads} of ${newSkus.length}: '${sku}' (${skuGroups[sku].length} files)...`;
+        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Syncing SKU ${completedUploads} of ${skusToUpload.length}: '${sku}' (${skuGroups[sku].length} files)...`;
 
         const formData = new FormData();
         formData.append('stoneId', sku);
@@ -1051,12 +1043,16 @@
           
           if (res.ok) {
             successUploadCount++;
-            showToast(`✅ Uploaded new SKU '${sku}'! (${completedUploads}/${newSkus.length})`);
-            await fetchItems();
+            showToast(`✅ Synced SKU '${sku}' (${completedUploads}/${skusToUpload.length})`);
+            if (completedUploads % 5 === 0 || completedUploads === skusToUpload.length) {
+              await fetchItems();
+            }
           }
         } catch (err) {
-          if (err.name === 'AbortError') break;
-          console.error(`Failed to upload SKU ${sku}:`, err);
+          if (err.name === 'AbortError') {
+            uploadStatus.innerHTML = `<i class="fa-solid fa-circle-xmark" style="color:#ef4444;"></i> Sync cancelled.`;
+            break;
+          }
         }
       }
 
