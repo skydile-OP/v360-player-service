@@ -8,22 +8,41 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const db = require('./db');
+const { isValidSku, resolveSkuPath } = require('./src/utils/sku');
+const { createSession, getSession, revokeSession, safeEqual, parseCookies } = require('./src/auth/session');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.enable('trust proxy');
+// Production security assertion
+if (process.env.NODE_ENV === 'production' && !process.env.ADMIN_PASSWORD) {
+  console.error('[SECURITY ERROR] ADMIN_PASSWORD environment variable is required in production mode!');
+  process.exit(1);
+}
+
+app.set('trust proxy', 1);
 
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
-// Admin Action Rate Limiter: Strictly scoped to protect against upload spam and brute-forcing (120 req/min)
+// Login Rate Limiter (5 failed attempts per 15 minutes)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: false },
+  message: { error: 'Too many login attempts, please try again later.' }
+});
+
+// Admin Action Rate Limiter: Strictly scoped to protect against upload spam (120 req/min)
 const adminLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
   message: { error: 'Too many administrative requests, please try again later.' }
 });
 
@@ -62,21 +81,46 @@ if (!fs.existsSync(TEMP_UPLOAD_DIR)) {
 
 // Authentication Middleware
 function adminAuth(req, res, next) {
-  const adminPassword = process.env.ADMIN_PASSWORD || 'v360secure';
+  const adminPassword = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV !== 'production' ? 'v360secure' : null);
   const adminUser = process.env.ADMIN_USERNAME || 'admin';
+  const internalApiKey = process.env.V360_INTERNAL_API_KEY;
 
-  const authHeader = req.headers['authorization'];
-  const cookieHeader = req.headers['cookie'] || '';
-
-  if (cookieHeader.includes('v360_session=active')) {
-    return next();
+  // 1. Check Server-Issued Session Cookie (v360_sid)
+  const cookies = parseCookies(req.headers['cookie']);
+  const sessionToken = cookies['v360_sid'];
+  if (sessionToken) {
+    const session = getSession(sessionToken);
+    if (session) {
+      req.adminUser = session.user;
+      return next();
+    }
   }
 
-  if (authHeader && authHeader.startsWith('Basic ')) {
+  // 2. Check Dedicated Internal Service API Key (X-V360-Internal-Key) for AIDIA ERP
+  const internalKeyHeader = req.headers['x-v360-internal-key'];
+  if (internalKeyHeader && internalApiKey) {
+    if (safeEqual(internalKeyHeader, internalApiKey)) {
+      // Internal API key is NOT allowed to call administrative debug or session management endpoints
+      if (req.path === '/api/debug' || req.path.startsWith('/api/login') || req.path.startsWith('/api/logout')) {
+        return res.status(403).json({ error: 'Internal API Key is forbidden from accessing administrative debug/session endpoints.' });
+      }
+      req.isInternalService = true;
+      return next();
+    }
+  }
+
+  // 3. Check HTTP Basic Authentication
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Basic ') && adminPassword) {
     try {
-      const auth = Buffer.from(authHeader.split(' ')[1] || '', 'base64').toString().split(':');
-      if (auth[0] === adminUser && auth[1] === adminPassword) {
-        return next();
+      const authStr = Buffer.from(authHeader.split(' ')[1] || '', 'base64').toString();
+      const colonIdx = authStr.indexOf(':');
+      if (colonIdx !== -1) {
+        const u = authStr.substring(0, colonIdx);
+        const p = authStr.substring(colonIdx + 1);
+        if (safeEqual(u, adminUser) && safeEqual(p, adminPassword)) {
+          return next();
+        }
       }
     } catch (e) {}
   }
@@ -86,19 +130,43 @@ function adminAuth(req, res, next) {
 }
 
 // API Login Endpoint
-app.post('/api/login', adminLimiter, (req, res) => {
-  const adminPassword = process.env.ADMIN_PASSWORD || 'v360secure';
-  const { password } = req.body;
-  if (password === adminPassword) {
-    res.setHeader('Set-Cookie', 'v360_session=active; Path=/; SameSite=Lax; max-age=86400');
+app.post('/api/login', loginLimiter, (req, res) => {
+  const adminPassword = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV !== 'production' ? 'v360secure' : null);
+  if (!adminPassword) {
+    return res.status(500).json({ error: 'Server authentication configuration is missing.' });
+  }
+
+  const { password } = req.body || {};
+  if (password && safeEqual(password, adminPassword)) {
+    const token = createSession('admin');
+    const isProd = process.env.NODE_ENV === 'production' || req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
+    const secureFlag = isProd ? '; Secure' : '';
+    res.setHeader('Set-Cookie', `v360_sid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${secureFlag}`);
     return res.json({ success: true, message: 'Logged in successfully' });
   }
   return res.status(401).json({ error: 'Invalid password' });
 });
 
+// API Session Check Endpoint
+app.get('/api/session', (req, res) => {
+  const cookies = parseCookies(req.headers['cookie']);
+  const sessionToken = cookies['v360_sid'];
+  const session = sessionToken ? getSession(sessionToken) : null;
+
+  res.json({
+    authenticated: !!session,
+    user: session ? session.user : null
+  });
+});
+
 // API Logout Endpoint
 app.post('/api/logout', (req, res) => {
-  res.setHeader('Set-Cookie', 'v360_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+  const cookies = parseCookies(req.headers['cookie']);
+  const sessionToken = cookies['v360_sid'];
+  if (sessionToken) {
+    revokeSession(sessionToken);
+  }
+  res.setHeader('Set-Cookie', 'v360_sid=; Path=/; HttpOnly; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
@@ -125,12 +193,21 @@ app.use((req, res, next) => {
 });
 
 function findStoneDir(stoneId) {
-  if (!stoneId) return null;
-  if (!fs.existsSync(MEDIA_DIR)) return null;
-  const targetName = stoneId.trim().toLowerCase();
-  const items = fs.readdirSync(MEDIA_DIR);
-  const match = items.find(i => i.toLowerCase() === targetName);
-  return match ? path.join(MEDIA_DIR, match) : null;
+  if (!stoneId || !isValidSku(stoneId)) return null;
+  const targetPath = resolveSkuPath(MEDIA_DIR, stoneId);
+  if (!targetPath) return null;
+  if (fs.existsSync(targetPath)) return targetPath;
+
+  try {
+    const items = fs.readdirSync(MEDIA_DIR);
+    const targetLower = stoneId.trim().toLowerCase();
+    const match = items.find(i => i.toLowerCase() === targetLower);
+    if (match) {
+      const matchPath = resolveSkuPath(MEDIA_DIR, match);
+      if (matchPath && fs.existsSync(matchPath)) return matchPath;
+    }
+  } catch (e) {}
+  return null;
 }
 
 const storage = multer.diskStorage({
@@ -139,15 +216,22 @@ const storage = multer.diskStorage({
     if (isZip) {
       return cb(null, TEMP_UPLOAD_DIR);
     }
-    const stoneId = req.body.stoneId || req.query.stoneId || 'unclassified';
-    const targetDir = path.join(MEDIA_DIR, stoneId);
+    const rawStoneId = req.body.stoneId || req.query.stoneId || 'unclassified';
+    if (!isValidSku(rawStoneId)) {
+      return cb(new Error('Invalid SKU parameter'));
+    }
+    const targetDir = resolveSkuPath(MEDIA_DIR, rawStoneId);
+    if (!targetDir) {
+      return cb(new Error('SKU path containment error'));
+    }
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }
     cb(null, targetDir);
   },
   filename: (req, file, cb) => {
-    cb(null, file.originalname);
+    const safeFilename = path.basename(file.originalname);
+    cb(null, safeFilename);
   }
 });
 const upload = multer({ 
@@ -223,8 +307,17 @@ function getFallbackIconPath() {
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
+  if (!isValidSku(stoneId)) {
+    return res.status(400).send('Invalid SKU parameter');
+  }
+
+  const safeFilename = path.basename(filename);
+  if (safeFilename !== filename || filename.includes('..')) {
+    return res.status(400).send('Invalid filename parameter');
+  }
+
   if (process.env.STORAGE_CDN_URL) {
-    const remoteUrl = `${process.env.STORAGE_CDN_URL.replace(/\/$/, '')}/${stoneId}/${filename}`;
+    const remoteUrl = `${process.env.STORAGE_CDN_URL.replace(/\/$/, '')}/${encodeURIComponent(stoneId)}/${encodeURIComponent(safeFilename)}`;
     return res.redirect(302, remoteUrl);
   }
 
@@ -232,27 +325,27 @@ app.get('/imaged/:stoneId/:filename', (req, res) => {
 
   const stoneDir = findStoneDir(stoneId);
   if (!stoneDir) {
-    if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(filename)) {
+    if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(safeFilename)) {
       return res.sendFile(fallbackIcon);
     }
-    if (filename.endsWith('.json')) {
+    if (safeFilename.endsWith('.json')) {
       return res.json([{ image: '/image/360.png' }]);
     }
-    if (filename.endsWith('.mp4')) {
+    if (safeFilename.endsWith('.mp4')) {
       return res.redirect(302, `/vision360.html?d=${encodeURIComponent(stoneId)}`);
     }
     return res.sendFile(fallbackIcon);
   }
 
-  const filePath = path.join(stoneDir, filename);
+  const filePath = path.join(stoneDir, safeFilename);
   if (!fs.existsSync(filePath)) {
-    if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(filename)) {
+    if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(safeFilename)) {
       return res.sendFile(fallbackIcon);
     }
-    if (filename.endsWith('.json')) {
+    if (safeFilename.endsWith('.json')) {
       return res.json([{ image: '/image/360.png' }]);
     }
-    if (filename.endsWith('.mp4')) {
+    if (safeFilename.endsWith('.mp4')) {
       return res.redirect(302, `/vision360.html?d=${encodeURIComponent(stoneId)}`);
     }
     return res.sendFile(fallbackIcon);
@@ -298,6 +391,9 @@ app.use((req, res, next) => {
 
 app.get('/embed/:stoneId', (req, res) => {
   const { stoneId } = req.params;
+  if (!isValidSku(stoneId)) {
+    return res.status(400).send('Invalid SKU parameter');
+  }
   return res.redirect(`/vision360.html?d=${encodeURIComponent(stoneId)}`);
 });
 
@@ -339,7 +435,7 @@ function getStoneFrameInfo(stoneDir, stoneId) {
 
 function scanDiskItems(baseUrl) {
   const items = fs.readdirSync(MEDIA_DIR).filter(item => {
-    return item !== 'temp_uploads' && item !== 'sample_item' && fs.statSync(path.join(MEDIA_DIR, item)).isDirectory();
+    return item !== 'temp_uploads' && item !== 'sample_item' && isValidSku(item) && fs.statSync(path.join(MEDIA_DIR, item)).isDirectory();
   });
   return items.map(stoneId => {
     const stoneDir = path.join(MEDIA_DIR, stoneId);
@@ -412,8 +508,11 @@ app.get('/api/items', async (req, res) => {
 // PUBLIC Single SKU Detail Endpoint
 app.get('/api/items/:stoneId', (req, res) => {
   const { stoneId } = req.params;
-  const stoneDir = findStoneDir(stoneId);
+  if (!isValidSku(stoneId)) {
+    return res.status(400).json({ error: 'Invalid stoneId/SKU parameter' });
+  }
 
+  const stoneDir = findStoneDir(stoneId);
   if (!stoneDir) {
     return res.status(404).json({ error: 'Stone not found' });
   }
@@ -438,10 +537,18 @@ app.get('/api/items/:stoneId', (req, res) => {
 // PROTECTED Admin Delete Endpoint (Requires Auth & Admin Rate Limiter)
 app.delete('/api/items/:stoneId', adminAuth, adminLimiter, async (req, res) => {
   const { stoneId } = req.params;
+  if (!isValidSku(stoneId)) {
+    return res.status(400).json({ error: 'Invalid stoneId/SKU parameter' });
+  }
+
   const stoneDir = findStoneDir(stoneId);
 
   if (stoneDir) {
-    fs.rmSync(stoneDir, { recursive: true, force: true });
+    const baseResolved = path.resolve(MEDIA_DIR);
+    const stoneResolved = path.resolve(stoneDir);
+    if (stoneResolved.startsWith(baseResolved + path.sep)) {
+      fs.rmSync(stoneDir, { recursive: true, force: true });
+    }
   }
   if (db.isConnected) {
     await db.deleteSku(stoneId);
@@ -459,11 +566,16 @@ app.post('/api/upload-zip', adminAuth, adminLimiter, upload.single('file'), asyn
   const customStoneId = req.body.stoneId ? req.body.stoneId.trim() : null;
   const defaultStoneId = path.basename(req.file.originalname, path.extname(req.file.originalname));
   
+  let targetStoneId = customStoneId || defaultStoneId;
+  if (!isValidSku(targetStoneId)) {
+    if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+    return res.status(400).json({ error: 'Invalid stoneId/SKU parameter' });
+  }
+
   try {
     const zip = new AdmZip(zipPath);
     const zipEntries = zip.getEntries();
-    
-    let targetStoneId = customStoneId || defaultStoneId;
+
     const topLevelFolders = new Set();
     zipEntries.forEach(entry => {
       const parts = entry.entryName.split('/').filter(Boolean);
@@ -473,10 +585,18 @@ app.post('/api/upload-zip', adminAuth, adminLimiter, upload.single('file'), asyn
     });
 
     if (!customStoneId && topLevelFolders.size === 1) {
-      targetStoneId = Array.from(topLevelFolders)[0];
+      const detectedFolder = Array.from(topLevelFolders)[0];
+      if (isValidSku(detectedFolder)) {
+        targetStoneId = detectedFolder;
+      }
     }
 
-    const extractDir = path.join(MEDIA_DIR, targetStoneId);
+    const extractDir = resolveSkuPath(MEDIA_DIR, targetStoneId);
+    if (!extractDir) {
+      if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+      return res.status(400).json({ error: 'Invalid SKU path containment' });
+    }
+
     if (!fs.existsSync(extractDir)) {
       fs.mkdirSync(extractDir, { recursive: true });
     }
@@ -533,8 +653,8 @@ app.post('/api/upload-zip', adminAuth, adminLimiter, upload.single('file'), asyn
 // PROTECTED Admin Standard Upload Endpoint (Requires Auth & Admin Rate Limiter)
 app.post('/api/upload', adminAuth, adminLimiter, upload.array('files'), async (req, res) => {
   const stoneId = req.body.stoneId || req.query.stoneId;
-  if (!stoneId) {
-    return res.status(400).json({ error: 'Missing stoneId/SKU parameter' });
+  if (!stoneId || !isValidSku(stoneId)) {
+    return res.status(400).json({ error: 'Missing or invalid stoneId/SKU parameter' });
   }
 
   const hostHeader = req.get('host');
@@ -579,14 +699,18 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.listen(PORT, async () => {
-  console.log(`=================================================`);
-  console.log(` V360 Standalone Player & Dashboard Service Running`);
-  console.log(` Listening on port: ${PORT}`);
-  console.log(`=================================================`);
+if (require.main === module) {
+  app.listen(PORT, async () => {
+    console.log(`=================================================`);
+    console.log(` V360 Standalone Player & Dashboard Service Running`);
+    console.log(` Listening on port: ${PORT}`);
+    console.log(`=================================================`);
 
-  const dbOk = await db.init();
-  if (dbOk) {
-    await syncDiskItemsToDb('https://perpetual-harmony-production-451e.up.railway.app');
-  }
-});
+    const dbOk = await db.init();
+    if (dbOk) {
+      await syncDiskItemsToDb('https://perpetual-harmony-production-451e.up.railway.app');
+    }
+  });
+}
+
+module.exports = app;

@@ -773,10 +773,9 @@
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          localStorage.setItem('v360_auth', 'active');
-          document.cookie = "v360_session=active; path=/; max-age=86400";
           document.getElementById('loginModal').style.display = 'none';
           document.getElementById('loginError').style.display = 'none';
+          showToast('Logged in successfully!');
           fetchItems();
         } else {
           document.getElementById('loginError').style.display = 'block';
@@ -789,19 +788,24 @@
 
     function logoutAdmin() {
       fetch('/api/logout', { method: 'POST' }).finally(() => {
-        localStorage.removeItem('v360_auth');
-        document.cookie = "v360_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
         location.reload();
       });
     }
 
     window.addEventListener('DOMContentLoaded', () => {
       fetchItems();
-      if (localStorage.getItem('v360_auth') === 'active' || document.cookie.includes('v360_session=active')) {
-        document.getElementById('loginModal').style.display = 'none';
-      } else {
-        document.getElementById('loginModal').style.display = 'flex';
-      }
+      fetch('/api/session')
+        .then(res => res.json())
+        .then(data => {
+          if (data.authenticated) {
+            document.getElementById('loginModal').style.display = 'none';
+          } else {
+            document.getElementById('loginModal').style.display = 'flex';
+          }
+        })
+        .catch(() => {
+          document.getElementById('loginModal').style.display = 'flex';
+        });
     });
 
     function showToast(msg) {
