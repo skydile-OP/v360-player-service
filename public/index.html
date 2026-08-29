@@ -1012,22 +1012,42 @@
       const detectedLocalSkus = Object.keys(skuGroups).filter(k => k !== 'unclassified');
       const localSkusSet = new Set(detectedLocalSkus.map(s => s.toLowerCase()));
 
-      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Found ${detectedLocalSkus.length} local SKU subfolder(s). Comparing with cloud database...`;
+      // Check which SKUs already have physical media files saved on Railway Volume
+      let existingDiskItems = new Set();
+      try {
+        const dRes = await fetch('/api/debug');
+        if (dRes.ok) {
+          const dData = await dRes.json();
+          if (dData.items) {
+            existingDiskItems = new Set(dData.items.map(s => s.toLowerCase()));
+          }
+        }
+      } catch (e) {}
 
-      await fetchItems();
-      const skusToUpload = detectedLocalSkus;
+      // ONLY upload NEW SKUs or SKUs whose physical media files are missing from cloud storage
+      const skusToUpload = detectedLocalSkus.filter(sku => !existingDiskItems.has(sku.toLowerCase()));
+      const alreadySavedCount = detectedLocalSkus.length - skusToUpload.length;
 
-      console.log(`[BULK SYNC] Found ${skusToUpload.length} local SKU(s). Uploading all physical media files to persistent volume...`);
+      if (skusToUpload.length === 0) {
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> All ${detectedLocalSkus.length} SKU(s) are already 100% fully saved in Cloud Storage! No new uploads needed.`;
+        showToast(`✅ All ${detectedLocalSkus.length} SKUs are already saved in the cloud!`);
+        btnAbortUpload.style.display = 'none';
+        return;
+      }
+
+      uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Found ${detectedLocalSkus.length} local SKU(s). ${alreadySavedCount} already saved in cloud. Uploading ${skusToUpload.length} new/missing SKU(s)...`;
+
+      console.log(`[INCREMENTAL SYNC] Total Local: ${detectedLocalSkus.length}, Already in Cloud Storage: ${alreadySavedCount}, New/Missing to Upload: ${skusToUpload.length}`);
 
       let completedUploads = 0;
       let successUploadCount = 0;
 
-      // Upload all detected local SKUs to populate persistent volume storage
+      // Upload ONLY new/missing SKUs into persistent cloud storage
       for (let sku of skusToUpload) {
         if (!currentAbortController || currentAbortController.signal.aborted) break;
 
         completedUploads++;
-        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Syncing SKU ${completedUploads} of ${skusToUpload.length}: '${sku}' (${skuGroups[sku].length} files)...`;
+        uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Uploading New SKU ${completedUploads} of ${skusToUpload.length}: '${sku}' (${skuGroups[sku].length} files)...`;
 
         const formData = new FormData();
         formData.append('stoneId', sku);
