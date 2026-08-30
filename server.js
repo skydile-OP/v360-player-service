@@ -10,6 +10,8 @@ require('dotenv').config();
 const db = require('./db');
 const { isValidSku, resolveSkuPath } = require('./src/utils/sku');
 const { createSession, getSession, revokeSession, safeEqual, parseCookies } = require('./src/auth/session');
+const { isAllowedFileExtension, MAX_FILES_PER_SKU, MAX_SINGLE_FILE_BYTES, MAX_ZIP_DECOMPRESSED_BYTES } = require('./src/utils/limits');
+const { createStagingDir, validateStagedFolder, atomicSwapSku, purgeDir } = require('./src/storage/atomic');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -100,7 +102,6 @@ function adminAuth(req, res, next) {
   const internalKeyHeader = req.headers['x-v360-internal-key'];
   if (internalKeyHeader && internalApiKey) {
     if (safeEqual(internalKeyHeader, internalApiKey)) {
-      // Internal API key is NOT allowed to call administrative debug or session management endpoints
       if (req.path === '/api/debug' || req.path.startsWith('/api/login') || req.path.startsWith('/api/logout')) {
         return res.status(403).json({ error: 'Internal API Key is forbidden from accessing administrative debug/session endpoints.' });
       }
@@ -170,7 +171,7 @@ app.post('/api/logout', (req, res) => {
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
-// Smart Fail-Safe URL Handler: ONLY redirect if an iframe HTML tag is present in the requested URL path
+// Smart Fail-Safe URL Handler
 app.use((req, res, next) => {
   const decodedUrl = decodeURIComponent(req.url);
   if (decodedUrl.includes('<iframe') || decodedUrl.includes('%3Ciframe')) {
@@ -218,35 +219,46 @@ const storage = multer.diskStorage({
     }
     const rawStoneId = req.body.stoneId || req.query.stoneId || 'unclassified';
     if (!isValidSku(rawStoneId)) {
-      return cb(new Error('Invalid SKU parameter'));
+      return cb(new Error('Invalid stoneId/SKU parameter'));
     }
-    const targetDir = resolveSkuPath(MEDIA_DIR, rawStoneId);
-    if (!targetDir) {
-      return cb(new Error('SKU path containment error'));
+    try {
+      if (!req.stagingDir) {
+        req.stagingDir = createStagingDir(MEDIA_DIR, rawStoneId);
+      }
+      cb(null, req.stagingDir);
+    } catch (err) {
+      cb(err);
     }
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
-    }
-    cb(null, targetDir);
   },
   filename: (req, file, cb) => {
     const safeFilename = path.basename(file.originalname);
     cb(null, safeFilename);
   }
 });
+
 const upload = multer({ 
   storage,
-  limits: { fileSize: 150 * 1024 * 1024 }
+  limits: { 
+    fileSize: MAX_SINGLE_FILE_BYTES,
+    files: MAX_FILES_PER_SKU 
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.originalname.toLowerCase().endsWith('.zip') || isAllowedFileExtension(file.originalname)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File '${file.originalname}' has an unapproved extension.`));
+    }
+  }
 });
 
-// Serve Public Player Assets & Icons (100% Public Unauthenticated Access for Shopify & Web Embeds)
+// Serve Public Player Assets & Icons
 app.use('/css/images', express.static(path.join(__dirname, 'public', 'css', 'images')));
 app.use('/css', express.static(path.join(__dirname, 'public', 'css')));
 app.use('/js', express.static(path.join(__dirname, 'public', 'js')));
 app.use('/images', express.static(path.join(__dirname, 'public', 'images')));
 app.use('/image', express.static(path.join(__dirname, 'public', 'image')));
 
-// PUBLIC 360° Interactive Viewer Pages (100% Unauthenticated Access for Shopify Embeds)
+// PUBLIC 360° Interactive Viewer Pages
 app.get('/vision360.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
 });
@@ -255,7 +267,7 @@ app.get('/viewer.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'vision360.html'));
 });
 
-// PROTECTED Admin Dashboard Root & index.html
+// PROTECTED Admin Dashboard Root
 app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, s-maxage=0');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -270,7 +282,7 @@ app.get('/index.html', (req, res) => {
 app.get('/api/debug', adminAuth, (req, res) => {
   try {
     const mediaExists = fs.existsSync(MEDIA_DIR);
-    const items = mediaExists ? fs.readdirSync(MEDIA_DIR) : [];
+    const items = mediaExists ? fs.readdirSync(MEDIA_DIR).filter(i => !i.startsWith('.')) : [];
     const debugData = {};
     items.forEach(i => {
       const p = path.join(MEDIA_DIR, i);
@@ -303,7 +315,7 @@ function getFallbackIconPath() {
   return path.join(__dirname, 'public', '360.png');
 }
 
-// V360 Asset Route (100% Public for 360 viewer canvas images & MP4 videos)
+// V360 Asset Route
 app.get('/imaged/:stoneId/:filename', (req, res) => {
   const { stoneId, filename } = req.params;
 
@@ -435,7 +447,7 @@ function getStoneFrameInfo(stoneDir, stoneId) {
 
 function scanDiskItems(baseUrl) {
   const items = fs.readdirSync(MEDIA_DIR).filter(item => {
-    return item !== 'temp_uploads' && item !== 'sample_item' && isValidSku(item) && fs.statSync(path.join(MEDIA_DIR, item)).isDirectory();
+    return !item.startsWith('.') && item !== 'temp_uploads' && item !== 'sample_item' && isValidSku(item) && fs.statSync(path.join(MEDIA_DIR, item)).isDirectory();
   });
   return items.map(stoneId => {
     const stoneDir = path.join(MEDIA_DIR, stoneId);
@@ -469,7 +481,7 @@ async function syncDiskItemsToDb(baseUrl) {
   console.log(`[DB] Synced ${diskItems.length} SKU(s) from disk into PostgreSQL.`);
 }
 
-// PUBLIC API Items Endpoint (100% Unauthenticated for Public Grid/Embedded Catalogs)
+// PUBLIC API Items Endpoint
 app.get('/api/items', async (req, res) => {
   try {
     const hostHeader = req.get('host');
@@ -534,7 +546,7 @@ app.get('/api/items/:stoneId', (req, res) => {
   });
 });
 
-// PROTECTED Admin Delete Endpoint (Requires Auth & Admin Rate Limiter)
+// PROTECTED Admin Delete Endpoint
 app.delete('/api/items/:stoneId', adminAuth, adminLimiter, async (req, res) => {
   const { stoneId } = req.params;
   if (!isValidSku(stoneId)) {
@@ -556,8 +568,13 @@ app.delete('/api/items/:stoneId', adminAuth, adminLimiter, async (req, res) => {
   res.json({ success: true, message: `Deleted SKU ${stoneId}` });
 });
 
-// PROTECTED Admin ZIP Upload Endpoint (Requires Auth & Admin Rate Limiter)
-app.post('/api/upload-zip', adminAuth, adminLimiter, upload.single('file'), async (req, res) => {
+// PROTECTED Admin ZIP Upload Endpoint (Atomic Staging & Unzip)
+app.post('/api/upload-zip', adminAuth, adminLimiter, (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No ZIP file uploaded' });
   }
@@ -567,22 +584,43 @@ app.post('/api/upload-zip', adminAuth, adminLimiter, upload.single('file'), asyn
   const defaultStoneId = path.basename(req.file.originalname, path.extname(req.file.originalname));
   
   let targetStoneId = customStoneId || defaultStoneId;
-  if (!isValidSku(targetStoneId)) {
-    if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-    return res.status(400).json({ error: 'Invalid stoneId/SKU parameter' });
-  }
+  let stagingDir = null;
 
   try {
     const zip = new AdmZip(zipPath);
     const zipEntries = zip.getEntries();
 
+    if (zipEntries.length > MAX_FILES_PER_SKU) {
+      throw new Error(`ZIP archive exceeds maximum file count limit of ${MAX_FILES_PER_SKU} files.`);
+    }
+
     const topLevelFolders = new Set();
-    zipEntries.forEach(entry => {
+    let totalUncompressedBytes = 0;
+
+    for (const entry of zipEntries) {
+      if (entry.entryName.includes('..') || entry.entryName.startsWith('/') || entry.entryName.startsWith('\\')) {
+        throw new Error(`ZIP entry '${entry.entryName}' contains invalid path traversal sequences.`);
+      }
+
       const parts = entry.entryName.split('/').filter(Boolean);
       if (parts.length > 1) {
         topLevelFolders.add(parts[0]);
       }
-    });
+
+      if (!entry.isDirectory) {
+        const filename = path.basename(entry.entryName);
+        if (filename && !filename.startsWith('.')) {
+          if (!isAllowedFileExtension(filename)) {
+            throw new Error(`ZIP entry '${filename}' has an unapproved file extension.`);
+          }
+          totalUncompressedBytes += entry.header.size || 0;
+        }
+      }
+    }
+
+    if (totalUncompressedBytes > MAX_ZIP_DECOMPRESSED_BYTES) {
+      throw new Error(`Uncompressed ZIP size exceeds limit of 500 MB.`);
+    }
 
     if (!customStoneId && topLevelFolders.size === 1) {
       const detectedFolder = Array.from(topLevelFolders)[0];
@@ -591,49 +629,48 @@ app.post('/api/upload-zip', adminAuth, adminLimiter, upload.single('file'), asyn
       }
     }
 
-    const extractDir = resolveSkuPath(MEDIA_DIR, targetStoneId);
-    if (!extractDir) {
-      if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-      return res.status(400).json({ error: 'Invalid SKU path containment' });
+    if (!isValidSku(targetStoneId)) {
+      throw new Error(`Invalid stoneId/SKU parameter '${targetStoneId}'.`);
     }
 
-    if (!fs.existsSync(extractDir)) {
-      fs.mkdirSync(extractDir, { recursive: true });
-    }
+    stagingDir = createStagingDir(MEDIA_DIR, targetStoneId);
 
     zipEntries.forEach(entry => {
       if (!entry.isDirectory) {
         const filename = path.basename(entry.entryName);
         if (filename && !filename.startsWith('.')) {
-          const destPath = path.join(extractDir, filename);
+          const destPath = path.join(stagingDir, filename);
           fs.writeFileSync(destPath, entry.getData());
         }
       }
     });
 
-    fs.unlinkSync(zipPath);
+    if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+
     const hostHeader = req.get('host');
     const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
     const baseUrl = `${proto}://${hostHeader}`;
 
-    const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(extractDir, targetStoneId);
+    await atomicSwapSku(MEDIA_DIR, targetStoneId, stagingDir, async (newLiveDir) => {
+      const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(newLiveDir, targetStoneId);
 
-    const skuRecord = {
-      sku: targetStoneId,
-      stoneId: targetStoneId,
-      frameCount,
-      hasVideo,
-      hasHtml,
-      thumbnail,
-      v360Url: `/vision360.html?d=${targetStoneId}`,
-      modernUrl: `/viewer.html?d=${targetStoneId}`,
-      videoUrl: hasVideo ? `/imaged/${targetStoneId}/video.mp4` : null,
-      createdAt: new Date()
-    };
+      const skuRecord = {
+        sku: targetStoneId,
+        stoneId: targetStoneId,
+        frameCount,
+        hasVideo,
+        hasHtml,
+        thumbnail,
+        v360Url: `/vision360.html?d=${targetStoneId}`,
+        modernUrl: `/viewer.html?d=${targetStoneId}`,
+        videoUrl: hasVideo ? `/imaged/${targetStoneId}/video.mp4` : null,
+        createdAt: new Date()
+      };
 
-    if (db.isConnected) {
-      await db.upsertSku(skuRecord);
-    }
+      if (db.isConnected) {
+        await db.upsertSku(skuRecord);
+      }
+    });
 
     res.json({
       success: true,
@@ -646,49 +683,67 @@ app.post('/api/upload-zip', adminAuth, adminLimiter, upload.single('file'), asyn
     });
   } catch (err) {
     if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-    res.status(500).json({ error: `Failed to process ZIP file: ${err.message}` });
+    if (stagingDir) purgeDir(stagingDir);
+    res.status(400).json({ error: `Failed to process ZIP file: ${err.message}` });
   }
 });
 
-// PROTECTED Admin Standard Upload Endpoint (Requires Auth & Admin Rate Limiter)
-app.post('/api/upload', adminAuth, adminLimiter, upload.array('files'), async (req, res) => {
+// PROTECTED Admin Standard Upload Endpoint (Atomic Staging & Swap)
+app.post('/api/upload', adminAuth, adminLimiter, (req, res, next) => {
+  upload.array('files')(req, res, (err) => {
+    if (err) {
+      if (req.stagingDir) purgeDir(req.stagingDir);
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   const stoneId = req.body.stoneId || req.query.stoneId;
   if (!stoneId || !isValidSku(stoneId)) {
+    if (req.stagingDir) purgeDir(req.stagingDir);
     return res.status(400).json({ error: 'Missing or invalid stoneId/SKU parameter' });
   }
 
-  const hostHeader = req.get('host');
-  const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-  const baseUrl = `${proto}://${hostHeader}`;
-
-  const stoneDir = findStoneDir(stoneId);
-  if (stoneDir) {
-    const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(stoneDir, stoneId);
-    const skuRecord = {
-      sku: stoneId,
-      stoneId,
-      frameCount,
-      hasVideo,
-      hasHtml,
-      thumbnail,
-      v360Url: `/vision360.html?d=${stoneId}`,
-      modernUrl: `/viewer.html?d=${stoneId}`,
-      videoUrl: hasVideo ? `/imaged/${stoneId}/video.mp4` : null,
-      createdAt: new Date()
-    };
-    if (db.isConnected) {
-      await db.upsertSku(skuRecord);
-    }
+  if (!req.stagingDir || !fs.existsSync(req.stagingDir)) {
+    return res.status(400).json({ error: 'No files were uploaded to staging.' });
   }
 
-  res.json({
-    success: true,
-    message: `Successfully uploaded ${req.files ? req.files.length : 0} files for SKU ${stoneId}`,
-    stoneId,
-    sku: stoneId,
-    modernUrl: `${baseUrl}/viewer.html?d=${stoneId}`,
-    v360Url: `${baseUrl}/vision360.html?d=${stoneId}`
-  });
+  try {
+    const hostHeader = req.get('host');
+    const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const baseUrl = `${proto}://${hostHeader}`;
+
+    await atomicSwapSku(MEDIA_DIR, stoneId, req.stagingDir, async (newLiveDir) => {
+      const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(newLiveDir, stoneId);
+      const skuRecord = {
+        sku: stoneId,
+        stoneId,
+        frameCount,
+        hasVideo,
+        hasHtml,
+        thumbnail,
+        v360Url: `/vision360.html?d=${stoneId}`,
+        modernUrl: `/viewer.html?d=${stoneId}`,
+        videoUrl: hasVideo ? `/imaged/${stoneId}/video.mp4` : null,
+        createdAt: new Date()
+      };
+      if (db.isConnected) {
+        await db.upsertSku(skuRecord);
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully uploaded ${req.files ? req.files.length : 0} files for SKU ${stoneId}`,
+      stoneId,
+      sku: stoneId,
+      modernUrl: `${baseUrl}/viewer.html?d=${stoneId}`,
+      v360Url: `${baseUrl}/vision360.html?d=${stoneId}`
+    });
+  } catch (err) {
+    if (req.stagingDir) purgeDir(req.stagingDir);
+    res.status(400).json({ error: `Upload failed: ${err.message}` });
+  }
 });
 
 app.get('/health', (req, res) => {
