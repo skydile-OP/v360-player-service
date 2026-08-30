@@ -290,11 +290,27 @@ app.get('/api/debug', adminAuth, (req, res) => {
         debugData[i] = fs.readdirSync(p);
       }
     });
+
+    const checkDirs = ['/data', '/app/data', '/app/data/media', '/tmp'];
+    const dirScans = {};
+    checkDirs.forEach(d => {
+      if (fs.existsSync(d)) {
+        try {
+          dirScans[d] = fs.readdirSync(d);
+        } catch (e) {
+          dirScans[d] = e.message;
+        }
+      } else {
+        dirScans[d] = 'does not exist';
+      }
+    });
+
     res.json({ 
       MEDIA_DIR, 
       mediaExists, 
       items, 
       dbConnected: db.isConnected,
+      dirScans,
       debugData 
     });
   } catch (err) {
