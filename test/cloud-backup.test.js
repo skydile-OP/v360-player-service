@@ -16,6 +16,7 @@ for (const corrupt of [false, true]) {
   test(`cloud snapshot verifies actual downloaded bytes (corrupt=${corrupt})`, async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v360-backup-'));
     fs.writeFileSync(path.join(dir, 'video.mp4'), 'original media');
+    fs.writeFileSync(path.join(dir, 'manifest.json'), 'user metadata');
     const objects = new Map();
     const client = { async send(command) {
       const { Key, Body } = command.input;
@@ -32,11 +33,12 @@ for (const corrupt of [false, true]) {
       const action = backupFolder('TEST', dir, { client, config: { bucket: 'test' } });
       if (corrupt) {
         await assert.rejects(action, /not committed/);
-        assert.equal([...objects.keys()].some(k => k.endsWith('manifest.json')), false);
+        assert.equal([...objects.keys()].some(k => k.endsWith('manifest.json') && !k.includes('/files/')), false);
       } else {
         const result = await action;
-        assert.equal(result.files.length, 1);
-        assert.equal([...objects.keys()].some(k => k.endsWith('manifest.json')), true);
+        assert.equal(result.files.length, 2);
+        assert.equal(objects.get(result.objectPrefix + 'manifest.json').toString(), 'user metadata');
+        assert.equal([...objects.keys()].some(k => k.endsWith('manifest.json') && !k.includes('/files/')), true);
       }
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });

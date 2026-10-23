@@ -47,14 +47,14 @@ async function backupFolder(sku, directory, options = {}) {
   const prefix = `v360-backups/${encodeURIComponent(sku)}/${revision}/`;
   try {
     for (const file of files) {
-      const Key = prefix + encodeURIComponent(file.name);
+      const Key = prefix + 'files/' + encodeURIComponent(file.name);
       await client.send(new PutObjectCommand({ Bucket: config.bucket, Key,
         Body: fs.createReadStream(path.join(directory, file.name)), ContentLength: file.bytes,
         Metadata: { sha256: file.sha256 } }));
       const saved = await client.send(new GetObjectCommand({ Bucket: config.bucket, Key }));
       if (await digest(saved.Body) !== file.sha256) throw new Error('Cloud copy checksum mismatch');
     }
-    const manifest = { sku, revision, files, verifiedAt: new Date().toISOString() };
+    const manifest = { sku, revision, objectPrefix: prefix + 'files/', files, verifiedAt: new Date().toISOString() };
     await client.send(new PutObjectCommand({ Bucket: config.bucket, Key: prefix + 'manifest.json',
       Body: JSON.stringify(manifest), ContentType: 'application/json' }));
     return manifest;
