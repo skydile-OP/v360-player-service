@@ -12,6 +12,7 @@ const { isValidSku, resolveSkuPath } = require('./src/utils/sku');
 const { createSession, getSession, revokeSession, safeEqual, parseCookies } = require('./src/auth/session');
 const { isAllowedFileExtension, MAX_FILES_PER_SKU, MAX_SINGLE_FILE_BYTES, MAX_ZIP_DECOMPRESSED_BYTES } = require('./src/utils/limits');
 const { createStagingDir, validateStagedFolder, atomicSwapSku, purgeDir } = require('./src/storage/atomic');
+const { backupFolder, assertDurableStorage } = require('./src/storage/cloud-backup');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -49,6 +50,7 @@ const adminLimiter = rateLimit({
 });
 
 // Media directory configuration (Railway Volume / Persistent Disk Support)
+assertDurableStorage();
 const MEDIA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.MEDIA_DIR || path.join(__dirname, 'data', 'media');
 if (!fs.existsSync(MEDIA_DIR)) {
   fs.mkdirSync(MEDIA_DIR, { recursive: true });
@@ -667,6 +669,9 @@ app.post('/api/upload-zip', adminAuth, adminLimiter, (req, res, next) => {
     const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
     const baseUrl = `${proto}://${hostHeader}`;
 
+    const validation = validateStagedFolder(stagingDir);
+    if (!validation.valid) throw new Error(validation.reason);
+    await backupFolder(targetStoneId, stagingDir);
     await atomicSwapSku(MEDIA_DIR, targetStoneId, stagingDir, async (newLiveDir) => {
       const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(newLiveDir, targetStoneId);
 
@@ -729,6 +734,9 @@ app.post('/api/upload', adminAuth, adminLimiter, (req, res, next) => {
     const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
     const baseUrl = `${proto}://${hostHeader}`;
 
+    const validation = validateStagedFolder(req.stagingDir);
+    if (!validation.valid) throw new Error(validation.reason);
+    await backupFolder(stoneId, req.stagingDir);
     await atomicSwapSku(MEDIA_DIR, stoneId, req.stagingDir, async (newLiveDir) => {
       const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(newLiveDir, stoneId);
       const skuRecord = {
@@ -766,6 +774,8 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     dbConnected: db.isConnected,
+    persistentMedia: Boolean(process.env.RAILWAY_VOLUME_MOUNT_PATH),
+    cloudBackupConfigured: Boolean(require('./src/storage/cloud-backup').cloudConfig()),
     timestamp: new Date().toISOString() 
   });
 });
