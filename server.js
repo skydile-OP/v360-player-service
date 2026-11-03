@@ -13,6 +13,7 @@ const { createSession, getSession, revokeSession, safeEqual, parseCookies } = re
 const { isAllowedFileExtension, MAX_FILES_PER_SKU, MAX_SINGLE_FILE_BYTES, MAX_ZIP_DECOMPRESSED_BYTES } = require('./src/utils/limits');
 const { createStagingDir, validateStagedFolder, atomicSwapSku, purgeDir } = require('./src/storage/atomic');
 const { backupFolder, assertDurableStorage } = require('./src/storage/cloud-backup');
+const { mediaDirectoryIndex } = require('./src/storage/media-index');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -506,11 +507,14 @@ app.get('/api/items', async (req, res) => {
     const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
     const baseUrl = `${proto}://${hostHeader}`;
 
+    const mediaDirectories = mediaDirectoryIndex(MEDIA_DIR);
+
     if (db.isConnected) {
       const dbRows = await db.getAllSkus();
       if (dbRows && dbRows.length > 0) {
         const itemList = dbRows.map(r => ({
           stoneId: r.sku,
+          mediaAvailable: mediaDirectories.has(r.sku.toLowerCase()),
           sku: r.sku,
           frameCount: r.frame_count,
           thumbnail: r.thumbnail_url,
@@ -524,12 +528,13 @@ app.get('/api/items', async (req, res) => {
           fullModernUrl: `${baseUrl}${r.modern_url}`,
           embedCode: `<iframe src="${baseUrl}${r.v360_url}" width="100%" height="500px" frameborder="0" allowfullscreen></iframe>`
         }));
-        return res.json({ source: 'postgresql', count: itemList.length, items: itemList });
+        return res.json({ source: 'postgresql', storageVerified: true, count: itemList.length, items: itemList });
       }
     }
 
     const diskItems = scanDiskItems(baseUrl);
-    res.json({ source: 'filesystem', count: diskItems.length, items: diskItems });
+    res.json({ source: 'filesystem', storageVerified: true, count: diskItems.length,
+      items: diskItems.map(item => ({ ...item, mediaAvailable: true })) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
