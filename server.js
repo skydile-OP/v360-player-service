@@ -14,6 +14,8 @@ const { isAllowedFileExtension, MAX_FILES_PER_SKU, MAX_SINGLE_FILE_BYTES, MAX_ZI
 const { createStagingDir, validateStagedFolder, atomicSwapSku, purgeDir } = require('./src/storage/atomic');
 const { backupFolder, assertDurableStorage } = require('./src/storage/cloud-backup');
 const { mediaDirectoryIndex } = require('./src/storage/media-index');
+const { deleteCloudFolder } = require('./src/storage/cloud-backup');
+const { withSkuLock } = require('./src/storage/sku-lock');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -522,6 +524,7 @@ app.get('/api/items', async (req, res) => {
           hasHtml: r.has_html,
           videoUrl: r.video_url,
           createdAt: r.created_at,
+          updatedAt: r.updated_at,
           v360Url: r.v360_url,
           modernUrl: r.modern_url,
           fullV360Url: `${baseUrl}${r.v360_url}`,
@@ -576,6 +579,18 @@ app.delete('/api/items/:stoneId', adminAuth, adminLimiter, async (req, res) => {
     return res.status(400).json({ error: 'Invalid stoneId/SKU parameter' });
   }
 
+  return withSkuLock(stoneId, async () => {
+  try {
+  let record;
+  if (req.query.purgeCloud === '1') {
+    if (!db.isConnected) return res.status(503).json({ error: 'Database unavailable; deletion stopped.' });
+    record = await db.getSku(stoneId);
+    if (!record) return res.status(409).json({ error: 'Gallery changed; refresh the deletion preview.' });
+    if (!req.query.expectedUpdatedAt || new Date(record.updated_at).toISOString() !== req.query.expectedUpdatedAt) {
+      return res.status(409).json({ error: 'This folder changed after preview; refresh before deleting.' });
+    }
+    await deleteCloudFolder(record.sku);
+  }
   const stoneDir = findStoneDir(stoneId);
 
   if (stoneDir) {
@@ -586,9 +601,11 @@ app.delete('/api/items/:stoneId', adminAuth, adminLimiter, async (req, res) => {
     }
   }
   if (db.isConnected) {
-    await db.deleteSku(stoneId);
+    if (!await db.deleteSku(stoneId)) throw new Error('Catalogue deletion failed; retry.');
   }
   res.json({ success: true, message: `Deleted SKU ${stoneId}` });
+  } catch (_) { res.status(503).json({ error: 'Media deletion incomplete; retry or refresh the preview.' }); }
+  });
 });
 
 // PROTECTED Admin ZIP Upload Endpoint (Atomic Staging & Unzip)
@@ -676,6 +693,7 @@ app.post('/api/upload-zip', adminAuth, adminLimiter, (req, res, next) => {
 
     const validation = validateStagedFolder(stagingDir);
     if (!validation.valid) throw new Error(validation.reason);
+    await withSkuLock(targetStoneId, async () => {
     await backupFolder(targetStoneId, stagingDir);
     await atomicSwapSku(MEDIA_DIR, targetStoneId, stagingDir, async (newLiveDir) => {
       const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(newLiveDir, targetStoneId);
@@ -696,6 +714,8 @@ app.post('/api/upload-zip', adminAuth, adminLimiter, (req, res, next) => {
       if (db.isConnected) {
         await db.upsertSku(skuRecord);
       }
+    });
+
     });
 
     res.json({
@@ -741,6 +761,7 @@ app.post('/api/upload', adminAuth, adminLimiter, (req, res, next) => {
 
     const validation = validateStagedFolder(req.stagingDir);
     if (!validation.valid) throw new Error(validation.reason);
+    await withSkuLock(stoneId, async () => {
     await backupFolder(stoneId, req.stagingDir);
     await atomicSwapSku(MEDIA_DIR, stoneId, req.stagingDir, async (newLiveDir) => {
       const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(newLiveDir, stoneId);
@@ -759,6 +780,7 @@ app.post('/api/upload', adminAuth, adminLimiter, (req, res, next) => {
       if (db.isConnected) {
         await db.upsertSku(skuRecord);
       }
+    });
     });
 
     res.json({

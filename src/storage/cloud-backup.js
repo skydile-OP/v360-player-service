@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 const { isValidSku } = require('../utils/sku');
 
 function cloudConfig(env = process.env) {
@@ -64,4 +64,25 @@ async function backupFolder(sku, directory, options = {}) {
   }
 }
 
-module.exports = { backupFolder, assertDurableStorage, cloudConfig };
+async function deleteCloudFolder(sku, options = {}) {
+  if (!isValidSku(sku)) throw new Error('Invalid backup SKU');
+  const config = options.config || cloudConfig();
+  if (!config) throw new Error('Cloud storage is not configured; deletion stopped.');
+  const client = options.client || new S3Client({ endpoint: config.endpoint, region: 'auto', credentials: config.credentials });
+  const Prefix = `v360-backups/${encodeURIComponent(sku)}/`;
+  let deleted = 0;
+  try {
+    while (true) {
+      const page = await client.send(new ListObjectsV2Command({ Bucket: config.bucket, Prefix, MaxKeys: 1000 }));
+      const objects = (page.Contents || []).map(object => ({ Key: object.Key }));
+      if (!objects.length) break;
+      if (objects.some(object => !object.Key.startsWith(Prefix))) throw new Error('Unexpected object prefix');
+      const result = await client.send(new DeleteObjectsCommand({ Bucket: config.bucket, Delete: { Objects: objects, Quiet: true } }));
+      if (result.Errors?.length) throw new Error('Object deletion failed');
+      deleted += objects.length;
+    }
+  } catch (_) { throw new Error('Cloud deletion incomplete; retry this folder.'); }
+  return deleted;
+}
+
+module.exports = { backupFolder, assertDurableStorage, cloudConfig, deleteCloudFolder };
