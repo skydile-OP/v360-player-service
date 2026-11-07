@@ -16,6 +16,7 @@ const { backupFolder, assertDurableStorage } = require('./src/storage/cloud-back
 const { mediaDirectoryIndex } = require('./src/storage/media-index');
 const { deleteCloudFolder } = require('./src/storage/cloud-backup');
 const { withSkuLock } = require('./src/storage/sku-lock');
+const { withMediaUploadLock, shareUploadMedia, reconcileDuplicateMedia } = require('./src/storage/media-dedupe');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -693,8 +694,9 @@ app.post('/api/upload-zip', adminAuth, adminLimiter, (req, res, next) => {
 
     const validation = validateStagedFolder(stagingDir);
     if (!validation.valid) throw new Error(validation.reason);
-    await withSkuLock(targetStoneId, async () => {
+    await withMediaUploadLock(targetStoneId, async () => {
     await backupFolder(targetStoneId, stagingDir);
+    await shareUploadMedia(MEDIA_DIR, targetStoneId, stagingDir);
     await atomicSwapSku(MEDIA_DIR, targetStoneId, stagingDir, async (newLiveDir) => {
       const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(newLiveDir, targetStoneId);
 
@@ -761,8 +763,9 @@ app.post('/api/upload', adminAuth, adminLimiter, (req, res, next) => {
 
     const validation = validateStagedFolder(req.stagingDir);
     if (!validation.valid) throw new Error(validation.reason);
-    await withSkuLock(stoneId, async () => {
+    await withMediaUploadLock(stoneId, async () => {
     await backupFolder(stoneId, req.stagingDir);
+    await shareUploadMedia(MEDIA_DIR, stoneId, req.stagingDir);
     await atomicSwapSku(MEDIA_DIR, stoneId, req.stagingDir, async (newLiveDir) => {
       const { frameCount, thumbnail, hasVideo, hasHtml } = getStoneFrameInfo(newLiveDir, stoneId);
       const skuRecord = {
@@ -817,6 +820,11 @@ if (require.main === module) {
     const dbOk = await db.init();
     if (dbOk) {
       await syncDiskItemsToDb('https://perpetual-harmony-production-451e.up.railway.app');
+    }
+    if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+      await reconcileDuplicateMedia(MEDIA_DIR).catch(err => {
+        console.error('[Media Dedupe] Could not scan the media volume:', err.message);
+      });
     }
   });
 }

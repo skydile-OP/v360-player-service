@@ -24,6 +24,11 @@ media checksums after deployments, not only HTTP 200 responses.
 The October 2026 missing originals must be re-uploaded from the office scanner
 PC. These protections cannot reconstruct files that were already absent.
 
+When a SKU and its `J-` counterpart or a reviewed duplicate contain identical
+media, the volume shares the underlying files using hard links. Both SKU folders
+and viewer URLs remain available. Replace media through the upload API, which
+writes a fresh directory, so updating one SKU keeps the other SKU's scan intact.
+
 This is a standalone, isolated microservice for self-hosting your V360 360° interactive diamond/jewelry viewer and media assets on **Railway.com**.
 
 It runs completely in parallel with your existing ERP project without modifying any of your existing database schemas or services.
